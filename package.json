@@ -1,0 +1,36 @@
+{
+  "name": "flowforge",
+  "version": "1.0.0",
+  "description": "FlowForge is an AI-powered developer collaboration and project management platform designed to bring project tracking, GitHub integration, real-time collaboration, deployment visibility, and intelligent developer assistance into a single platform.",
+  "main": "index.js",
+  "type":"module",
+  
+  "scripts": {
+    "dev":"nodemon src/server.js",
+    "start":"node src/server.js",
+    "prisma:generate":"prisma generate",
+    "prisma:migrate":"prisma migrate dev",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/samu5656/Flow-Forge.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/samu5656/Flow-Forge/issues"
+  },
+  "homepage": "https://github.com/samu5656/Flow-Forge#readme",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.3.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14",
+    "prisma": "^7.9.1"
+  }
+}
