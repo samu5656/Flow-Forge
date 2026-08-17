@@ -24,13 +24,23 @@ model User {
 }
 
 model Organization {
+  id          String               @id @default(uuid())
+  name        String
+  slug        String               @unique
+  description String?
+  members     OrganizationMember[]
+  projects    Project[]
+  createdAt   DateTime             @default(now())
+}
+
+model OrganizationMember {
   id             String       @id @default(uuid())
   userId         String
   organizationId String
   role           String
 
-  user           User         @relation(fields: [userId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
 
   createdAt DateTime @default(now())
 
