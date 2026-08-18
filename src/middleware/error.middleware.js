@@ -9,31 +9,34 @@
 // };
 
 // export default errorMiddleware;
+import { Prisma } from "@prisma/client";
+import { success } from "zod";
 
-// src/middlewares/errorHandler.js
-export const errorMiddleware = (err, req, res, next) => {
-  // Log full error internally for developers
-  console.error("LOGGED ERROR:", err);
+const errorMiddleware = (err,req,res,next)=>{
+  console.log(err);
 
-  // If it's a known operational error, use its status code and message
-  if (err.isOperational) {
-    return res.status(err.statusCode).json({
-      status: "fail",
-      message: err.message,
-    });
+  if(err instanceof Prisma.PrismaClientKnownRequestError){
+    if(err.code==='P2002'){
+      return res.status(409).json({
+        success:false,
+        message:"A resource with this value already exists"
+      });
+    }
+
+    if(err.code === "P2025"){
+      return res.status(404).json({
+        success:false,
+        message:"Resource not found"
+      });
+    }
   }
+  const statusCode = err.statusCode || 500;
 
-  // Handle Prisma Database Errors specifically
-  if (err.code === "P2002") {
-    return res.status(409).json({
-      status: "fail",
-      message: "A record with that unique field already exists.",
-    });
-  }
+  res.status(statusCode).json({
+    success: false,
+    message: 
+    statusCode === 500?"Internal server error": err.message
+  })
+}
 
-  // Fallback for unhandled programming/system errors
-  return res.status(500).json({
-    status: "error",
-    message: "Something went wrong on the server.",
-  });
-};
+export default errorMiddleware;

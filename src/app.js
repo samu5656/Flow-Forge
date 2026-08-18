@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import organizationRoutes from "./routes/organizarion.routes.js"
-import {errorMiddleware} from "./middleware/error.middleware.js";
+import errorMiddleware from "./middleware/error.middleware.js";
 const app = express();
 
 app.use(helmet());
