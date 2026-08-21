@@ -28,6 +28,8 @@ export const deleteOrganizationService = async(id)=>{
     return deleteOrganization(id);
 }
 
-export const getOrganizationsService =async()=>{
-    return findOrganizations();
+export const getOrganizationsService =async({page,limit})=>{
+
+    const skip = (page-1)*limit;
+    return findOrganizations({skip,take:limit});
 }

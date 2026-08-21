@@ -31,10 +31,12 @@ export const deleteOrganization = async(id)=>{
     });
 };
 
-export const findOrganizations = async()=>{
+export const findOrganizations = async({skip,take})=>{
     return prisma.organization.findMany({
+        skip,
+        take,
         orderBy:{
             createdAt:"desc"
         }
-    })
+    });
 }
