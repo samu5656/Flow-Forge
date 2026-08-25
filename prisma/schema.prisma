@@ -14,13 +14,15 @@ datasource db {
 }
 
 model User {
-  id          String    @id @default(uuid())
-  email       String    @unique
-  name        String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   memberships  OrganizationMember[]
+  refreshTokens RefreshToken[] // Required reverse relation field
 }
 
 model Organization {
@@ -43,7 +45,10 @@ model OrganizationMember {
   organization Organization @relation(fields: [organizationId], references: [id])
 
   createdAt DateTime @default(now())
-
+// Single-column index for direct user lookups
+  @@index([userId])
+  
+  // Composite unique constraint prevents duplicate membership and creates an implicit index
   @@unique([userId, organizationId])
 }
 
@@ -57,4 +62,33 @@ model Project {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+
+  // Single-column index for organization lookups
+  @@index([organizationId])
+  
+  // Composite index for fetching projects sorted by creation date within an organization
+  @@index([organizationId, createdAt])
+}
+
+model RefreshToken{
+  id          String   @id@default(uuid())
+  tokenHash   String   @unique
+
+//Cascade: Security cleanup rule. If a user deletes their account, PostgreSQL automatically purges all active refresh tokens associated with that user ID.
+
+  userId  String
+  user    User    @relation(
+    fields: [userId],
+    references: [id],
+    
+    onDelete: Cascade
+  )
+
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
