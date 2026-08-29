@@ -13,14 +13,14 @@ export const generateAccessToken = (user)=>{
     });
 };
 
-export const generateRefreshToken = (user)=>{
-    jwt.sign({
-        sub:user.id,
-        type:"refresh"
-    },
-    authConfig.refreshTokenSecret,
-    {
-        expiresIn: authConfig.refreshTokenExpiresIn
-    }
-)
-}
+// export const generateRefreshToken = (user)=>{
+//     jwt.sign({
+//         sub:user.id,
+//         type:"refresh"
+//     },
+//     authConfig.refreshTokenSecret,
+//     {
+//         expiresIn: authConfig.refreshTokenExpiresIn
+//     }
+// )
+//}

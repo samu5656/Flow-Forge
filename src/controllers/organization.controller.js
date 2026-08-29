@@ -3,7 +3,7 @@ import { createOrganizationService,deleteOrganizationService,getOrganizationServ
 
 export const createOrganization = async (req,res,next)=>{
     try{
-        const organization = await createOrganizationService(req.body);
+        const organization = await createOrganizationService(req.body,req.user.id);
 
         res.status(201).json({
             success: true,

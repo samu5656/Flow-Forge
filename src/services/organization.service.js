@@ -1,8 +1,8 @@
 import { createOrganization, deleteOrganization, findOrganizationById, findOrganizations, updateOrganization } from "../repositories/organization.repository.js";
 import AppError from "../utils/AppError.js";
 
-export const createOrganizationService = async(data)=>{
-    const organization = await createOrganization(data);
+export const createOrganizationService = async(data,userId)=>{
+    const organization = await createOrganization(data,userId);
 
     return organization;
 };

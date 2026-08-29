@@ -1,28 +1,25 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
-  //output   = "../generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      =  env("DATABASE_URL")
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  name          String?
-  passwordHash  String
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  memberships  OrganizationMember[]
-  refreshTokens RefreshToken[] // Required reverse relation field
+  memberships   OrganizationMember[]
+  refreshTokens RefreshToken[]
 }
 
 model Organization {
@@ -35,25 +32,31 @@ model Organization {
   createdAt   DateTime             @default(now())
 }
 
+enum OrganizationRole {
+  MEMBER
+  TEAM_LEAD
+  DEVOPS
+  ADMIN
+}
+
 model OrganizationMember {
-  id             String       @id @default(uuid())
+  id             String           @id @default(uuid())
   userId         String
   organizationId String
-  role           String
+  role           OrganizationRole
 
-  user         User         @relation(fields: [userId], references: [id])
-  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-// Single-column index for direct user lookups
-  @@index([userId])
-  
+
   // Composite unique constraint prevents duplicate membership and creates an implicit index
   @@unique([userId, organizationId])
+  @@index([organizationId])
 }
 
 model Project {
-  id             String       @id @default(uuid())
+  id             String  @id @default(uuid())
   name           String
   description    String?
   organizationId String
@@ -63,27 +66,18 @@ model Project {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-
   // Single-column index for organization lookups
   @@index([organizationId])
-  
   // Composite index for fetching projects sorted by creation date within an organization
   @@index([organizationId, createdAt])
 }
 
-model RefreshToken{
-  id          String   @id@default(uuid())
-  tokenHash   String   @unique
+model RefreshToken {
+  id        String @id @default(uuid())
+  tokenHash String @unique
 
-//Cascade: Security cleanup rule. If a user deletes their account, PostgreSQL automatically purges all active refresh tokens associated with that user ID.
-
-  userId  String
-  user    User    @relation(
-    fields: [userId],
-    references: [id],
-    
-    onDelete: Cascade
-  )
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   expiresAt DateTime
   revokedAt DateTime?
