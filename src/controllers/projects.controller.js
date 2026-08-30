@@ -1,4 +1,5 @@
-import { createProjectService,getProjectService,getProjectsService } from "../services/project.sevice.js";
+import { success } from "zod";
+import { createProjectService,getProjectService,getProjectsService, updateProjectService } from "../services/project.sevice.js";
 export const createProject = async (req, res, next) => {
     try {
         const project = await createProjectService(
@@ -47,6 +48,55 @@ export const getProject = async (req, res, next) => {
         res.status(200).json({
             success: true,
             data: project
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const updateProject = async(req,res,next)=>{
+    try{
+        const project = await updateProjectService(req.params.projectId,req.params.organizationId,req.body);
+        if(!project){
+            return res.status(404).json({
+                success:false,
+                message:"Project not found"
+            });
+        }
+
+        const updatedProject = await getProjectService(req.params.projectId,req.params.organizationId);
+
+        res.status(200).json({
+            success:true,
+            data:updatedProject
+        });
+    }catch(err){
+        next(err);
+    }
+}
+
+export const deleteProject = async (
+    req,
+    res,
+    next
+) => {
+    try {
+        const project =
+            await deleteProjectService(
+                req.params.projectId,
+                req.params.organizationId
+            );
+
+        if (!project) {
+            return res.status(404).json({
+                success: false,
+                message: "Project not found"
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "Project deleted successfully"
         });
     } catch (error) {
         next(error);

@@ -30,3 +30,22 @@ export const findProjectById = async (
         }
     });
 };
+
+export const updateProject = async(projectId,organizationId,data)=>{
+    return prisma.project.updateMany({
+        where:{
+            id:projectId,
+            organizationId
+        },
+        data
+    });
+};
+
+export const deleteProject = async(projectId,organizationId)=>{
+    return prisma.project.deleteMany({
+        where:{
+            id:projectId,
+            organizationId
+        }
+    });
+};

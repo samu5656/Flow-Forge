@@ -20,3 +20,52 @@ export const getTeamService = async (
         organizationId
     );
 };
+
+export const updateTeamService = async (
+    teamId,
+    organizationId,
+    data
+) => {
+    const existingTeam =
+        await findTeamById(
+            teamId,
+            organizationId
+        );
+
+    if (!existingTeam) {
+        return null;
+    }
+
+    await updateTeam(
+        teamId,
+        organizationId,
+        data
+    );
+
+    return findTeamById(
+        teamId,
+        organizationId
+    );
+};
+
+export const deleteTeamService = async (
+    teamId,
+    organizationId
+) => {
+    const existingTeam =
+        await findTeamById(
+            teamId,
+            organizationId
+        );
+
+    if (!existingTeam) {
+        return null;
+    }
+
+    await deleteTeam(
+        teamId,
+        organizationId
+    );
+
+    return existingTeam;
+};
