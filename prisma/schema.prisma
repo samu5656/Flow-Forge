@@ -20,6 +20,7 @@ model User {
 
   memberships   OrganizationMember[]
   refreshTokens RefreshToken[]
+  teamMembers   TeamMember[]
 }
 
 model Organization {
@@ -30,6 +31,7 @@ model Organization {
   members     OrganizationMember[]
   projects    Project[]
   createdAt   DateTime             @default(now())
+  teams       Team[]
 }
 
 enum OrganizationRole {
@@ -85,4 +87,54 @@ model RefreshToken {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+model Team {
+  id          String  @id @default(uuid())
+  name        String
+  description String?
+
+  organizationId String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  TeamMember   TeamMember[]
+
+  //team names only need to be unique inside an organization.
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model TeamMember {
+  id String @id @default(uuid())
+
+  teamId String
+  userId String
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@index([userId])
+}
+
+model Project{
+  id       String @id @default(uuid())
+  name     String
+  slug     String
+  description String?
+
+  organizationId String
+
+  organization   Organization   @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
 }
