@@ -57,23 +57,6 @@ model OrganizationMember {
   @@index([organizationId])
 }
 
-model Project {
-  id             String  @id @default(uuid())
-  name           String
-  description    String?
-  organizationId String
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Single-column index for organization lookups
-  @@index([organizationId])
-  // Composite index for fetching projects sorted by creation date within an organization
-  @@index([organizationId, createdAt])
-}
-
 model RefreshToken {
   id        String @id @default(uuid())
   tokenHash String @unique
@@ -122,18 +105,18 @@ model TeamMember {
   @@index([userId])
 }
 
-model Project{
-  id       String @id @default(uuid())
-  name     String
-  slug     String
+model Project {
+  id          String  @id @default(uuid())
+  name        String
+  slug        String
   description String?
 
   organizationId String
 
-  organization   Organization   @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([organizationId, slug])
   @@index([organizationId])
