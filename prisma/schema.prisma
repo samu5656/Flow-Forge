@@ -118,6 +118,41 @@ model Project {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  Issue Issue[]
+
   @@unique([organizationId, slug])
   @@index([organizationId])
 }
+
+enum IssueStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum IssuePriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Issue{
+  id    String @id @default(uuid())
+  title String
+  description String?
+
+  projectId   String
+
+  project Project @relation(fields:[projectId],references:[id],onDelete:Cascade)
+
+  status    IssueStatus @default(OPEN)
+  priority  IssuePriority @default(MEDIUM)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+}
+
