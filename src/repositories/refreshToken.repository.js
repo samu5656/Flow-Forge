@@ -22,7 +22,7 @@ export const revokeRefreshToken = async(id)=>{
         where:{
             id
         },
-        date:{
+        data:{
             revokedAt: new Date()
         }
     })

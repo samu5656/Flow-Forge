@@ -7,7 +7,7 @@ import AppError from "../utils/AppError.js";
 import authConfig from "../config/auth.js";
 import { hashToken } from "../utils/tokenHash.js";
 import { createRefreshToken } from "../repositories/refreshToken.repository.js";
-
+import { findRefreshToken } from "../repositories/refreshToken.repository.js";
 export const loginUser = async ({ email, password }) => {
     const user = await findUserByEmail(email);
 
@@ -83,21 +83,40 @@ export const getCurrentUser = async (userId) => {
 }
 
 export const refreshAccessToken = async (refreshToken) => {
-    let payload;
+    // let payload;
 
-    try {
-        payload = jwt.verify(refreshToken, authConfig.refreshTokenSecret);
-    } catch {
-        throw new AppError("Invalid or expired refresh Token", 401);
+    // try {
+    //     payload = jwt.verify(refreshToken, authConfig.refreshTokenSecret);
+    // } catch {
+    //     throw new AppError("Invalid or expired refresh Token", 401);
+    // }
+    // if (payload.type !== "refresh") {
+    //     throw new AppError("Invalid refresh token", 409);
+    // }
+
+    // const user = await findUserById(payload.sub);
+
+    // if (!user) {
+    //     throw new AppError("User not found", 401);
+    // }
+
+    // return generateAccessToken(user);
+
+    const tokenHash = hashToken(refreshToken);
+    const storedToken = await findRefreshToken(tokenHash);
+
+    if(!storedToken || storedToken.revokedAt){
+        throw new AppError("Invalid or expired refresh Token",401);
     }
-    if (payload.type !== "refresh") {
-        throw new AppError("Invalid refresh token", 409);
+
+    if(storedToken.expiresAt<new Date()){
+        throw new AppError("Invalid or expired refresh Token",401);
     }
 
-    const user = await findUserById(payload.sub);
+    const user = storedToken.user;
 
-    if (!user) {
-        throw new AppError("User not found", 401);
+    if(!user){
+        throw new AppError("User not found",401);
     }
 
     return generateAccessToken(user);

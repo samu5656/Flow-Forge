@@ -11,3 +11,15 @@ export const createTeamSchema = z.object({
         .max(500)
         .optional()
 });
+export const updateTeamSchema = z.object({
+    name: z
+        .string()
+        .min(2)
+        .max(100)
+        .optional(),
+
+    description: z
+        .string()
+        .max(500)
+        .optional()
+});

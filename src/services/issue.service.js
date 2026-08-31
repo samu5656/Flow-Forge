@@ -1,4 +1,4 @@
-import { createIssue,findIssuesByProject, findIssueById,updateIssue, deleteIssue } from "../repositories/issue.repository"
+import { createIssue,findIssuesByProject, findIssueById,updateIssue, deleteIssue } from "../repositories/issue.repository.js"
 
 export const createIssueService = async(data,projectId)=>{
     return createIssue({...data,projectId});

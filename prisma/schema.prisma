@@ -119,6 +119,8 @@ model Project {
   updatedAt DateTime @updatedAt
 
   Issue Issue[]
+  Milestone Milestone[]
+  Label Label[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -153,6 +155,56 @@ model Issue{
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  Task Task[]
+
   @@index([projectId])
 }
 
+model Task {
+  id    String @id @default(uuid())
+  title     String
+  completed Boolean @default(false)
+
+  issueId   String
+
+  issue Issue @relation(fields: [issueId],references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([issueId])
+}
+
+model Label {
+  id             String @id @default(uuid())
+
+  name           String
+  color          String?
+
+  projectId      String
+
+  project Project @relation(fields: [projectId],references: [id],onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model Milestone {
+  id          String @id @default(uuid())
+
+  title       String
+  description String?
+
+  dueDate     DateTime?
+
+  projectId   String
+
+  project Project @relation(fields: [projectId],references: [id],onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+}

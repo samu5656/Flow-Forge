@@ -48,7 +48,7 @@ export const me = async (req,res,next)=>{
     }
 }
 
-export const refresh = async(res,req,next)=>{
+export const refresh = async(req,res,next)=>{
     try{
         const refreshToken = req.cookies.refreshToken;
 

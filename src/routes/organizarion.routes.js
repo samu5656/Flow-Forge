@@ -33,19 +33,19 @@ router.get(
     getTeams
 );
 router.get(
-    "/organizations/:organizationId/teams/:teamId",
+    "/:organizationId/teams/:teamId",
     authenticate,
     requireOrganizationMembership,
     getTeam
 );
 router.patch(
-    "/organizations/:organizationId/teams/:teamId",
+    "/:organizationId/teams/:teamId",
     authenticate,
     requireOrganizationMembership,
     updateTeam
 );
 router.delete(
-    "/organizations/:organizationId/teams/:teamId",
+    "/:organizationId/teams/:teamId",
     authenticate,
     requireOrganizationMembership,
     deleteTeam
