@@ -9,6 +9,7 @@ import taskRoutes from "./routes/task.routes.js";
 import labelRoutes from "./routes/label.routes.js";
 import cookieParser from "cookie-parser";
 import milestoneRoutes from "./routes/milestone.routes.js";
+import githubRoutes from "./routes/github.routes.js";
 const app = express();
 
 app.use(helmet());
@@ -28,6 +29,7 @@ app.use("/api/v1", issueRoutes);
 app.use("/api/v1", taskRoutes);
 app.use("/api/v1", labelRoutes);
 app.use("/api/v1", milestoneRoutes);
+app.use("/api/v1", githubRoutes);
 
 app.use(errorMiddleware);
 export default app;

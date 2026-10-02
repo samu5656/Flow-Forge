@@ -62,11 +62,14 @@ export const findProjectRepositories = async(projectId,organizationId)=>{
 export const findProjectRepositoryById = async(repositoryId,projectId,organizationId)=>{
     return prisma.projectRepository.findFirst({
         where:{
-            id:repositoryId,
             projectId,
             project:{
                 organizationId
-            }
+            },
+            OR: [
+                { id: repositoryId },
+                { githubRepoId: repositoryId }
+            ]
         }
     });
 };
