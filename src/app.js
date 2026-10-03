@@ -10,11 +10,18 @@ import labelRoutes from "./routes/label.routes.js";
 import cookieParser from "cookie-parser";
 import milestoneRoutes from "./routes/milestone.routes.js";
 import githubRoutes from "./routes/github.routes.js";
+import { verifyGithubSignature } from "./middleware/githubWebhook.middleware.js";
 const app = express();
 
 app.use(helmet());
 app.use(cors());
-app.use(express.json());
+app.use(express.json({
+    verify:(req,res,buf)=>{
+        if(req.originalUrl.startsWith('api/v1/github/webhook')){
+            req.rawBody = buf.toString();
+        }
+    }
+}));
 app.use(cookieParser())
 
 app.get("/health",(req,res)=>{
@@ -30,6 +37,10 @@ app.use("/api/v1", taskRoutes);
 app.use("/api/v1", labelRoutes);
 app.use("/api/v1", milestoneRoutes);
 app.use("/api/v1", githubRoutes);
+
+app.post('/webhook', verifyGithubSignature, (req, res) => {
+    res.status(200).json({ message: 'Webhook verified successfully!', event: req.headers['x-github-event'] });
+});
 
 app.use(errorMiddleware);
 export default app;
