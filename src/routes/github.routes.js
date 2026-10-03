@@ -12,6 +12,9 @@ import authorize
 import validate
     from "../middleware/validate.middleware.js";
 
+import { verifyGithubSignature } from "../middleware/githubWebhook.middleware.js";
+import { handleGithubWebhook } from "../controllers/github.controller.js";
+
 import {
     connectGithub,
     githubCallback,
@@ -125,5 +128,7 @@ router.delete(
     authorize("project:update"),
     disconnectRepository
 );
+
+router.post('/github/webhook', verifyGithubSignature, handleGithubWebhook);
 
 export default router;

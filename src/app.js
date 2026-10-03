@@ -10,25 +10,20 @@ import labelRoutes from "./routes/label.routes.js";
 import cookieParser from "cookie-parser";
 import milestoneRoutes from "./routes/milestone.routes.js";
 import githubRoutes from "./routes/github.routes.js";
-import { verifyGithubSignature } from "./middleware/githubWebhook.middleware.js";
+import redis from './config/redis.js';
+
 const app = express();
 
 app.use(helmet());
 app.use(cors());
 app.use(express.json({
     verify:(req,res,buf)=>{
-        if(req.originalUrl.startsWith('api/v1/github/webhook')){
+        if(req.originalUrl.startsWith('/api/v1/github/webhook')){
             req.rawBody = buf.toString();
         }
     }
 }));
 app.use(cookieParser())
-
-app.get("/health",(req,res)=>{
-    res.status(200).json({
-        status: "ok"
-    });
-});
 
 app.use("/api/v1/organizations",organizationRoutes);;
 app.use("/api/v1/auth", authRoutes);
@@ -38,8 +33,19 @@ app.use("/api/v1", labelRoutes);
 app.use("/api/v1", milestoneRoutes);
 app.use("/api/v1", githubRoutes);
 
-app.post('/webhook', verifyGithubSignature, (req, res) => {
-    res.status(200).json({ message: 'Webhook verified successfully!', event: req.headers['x-github-event'] });
+app.get("/health", async (req, res) => {
+    try {
+        await redis.ping();
+        res.status(200).json({
+            status: "ok",
+            redis: "connected"
+        });
+    } catch (error) {
+        res.status(200).json({
+            status: "ok",
+            redis: "disconnected"
+        });
+    }
 });
 
 app.use(errorMiddleware);

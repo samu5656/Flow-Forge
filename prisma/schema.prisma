@@ -246,3 +246,33 @@ model ProjectRepository {
 
   @@unique([projectId,githubRepoId])
 }
+
+model WebhookEvent {
+  id    String    @id @default(uuid())
+
+  //uuid from x-github-delivery header
+  deliveryId   String   @unique
+
+  eventType   String
+
+  action      String?
+  payload     Json
+  repositoryFullName    String?
+
+  status      WebhookEventStatus  @default(PENDING)
+
+  error       String?
+  createdAt   DateTime @default(now())
+  processedAt DateTime?
+
+  @@index([eventType])
+  @@index([repositoryFullName])
+  @@index([status])
+}
+
+enum WebhookEventStatus {
+  PENDING
+  PROCESSED
+  FAILED
+  SKIPPED
+}
