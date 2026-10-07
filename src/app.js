@@ -11,6 +11,8 @@ import cookieParser from "cookie-parser";
 import milestoneRoutes from "./routes/milestone.routes.js";
 import githubRoutes from "./routes/github.routes.js";
 import redis from './config/redis.js';
+import './workers/email.worker.js'; // This starts the worker!
+import { addEmailJob } from './queues/email.queue.js';
 
 const app = express();
 
@@ -46,6 +48,21 @@ app.get("/health", async (req, res) => {
             redis: "disconnected"
         });
     }
+});
+
+app.post('/api/v1/test-email', async (req, res) => {
+    const { email } = req.body;
+    console.log(`[API] 1. Received request to send email to ${email}`);
+    
+    // Drop the job in the queue
+    await addEmailJob({ to: email, subject: 'Welcome to FlowForge!' });
+    
+    console.log('[API] 2. Job added to queue. Responding to user immediately.');
+    
+    // Respond INSTANTLY. We do not wait for the 2-second timeout!
+    res.status(200).json({ 
+        message: 'Email queued successfully. You will receive it shortly!' 
+    });
 });
 
 app.use(errorMiddleware);
