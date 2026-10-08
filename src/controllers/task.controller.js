@@ -5,6 +5,8 @@ import {
     updateTaskService,
     deleteTaskService
 } from "../services/task.service.js";
+import { notifyUser } from '../services/notification.service.js';
+
 
 export const createTask = async (req, res, next) => {
     try {
@@ -12,6 +14,14 @@ export const createTask = async (req, res, next) => {
             req.body,
             req.params.issueId
         );
+
+        await notifyUser({
+            userId: req.user.id,
+            email: req.user.email,
+            type: "TASK_CREATED",
+            title: `New Task Created: ${task.title}`,
+            message: "You have successfully created a new task."
+        });
 
         res.status(201).json({
             success: true,

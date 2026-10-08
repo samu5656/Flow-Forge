@@ -21,6 +21,7 @@ model User {
   memberships   OrganizationMember[]
   refreshTokens RefreshToken[]
   teamMembers   TeamMember[]
+  notifications Notification[]
   githubAccount GithHubAccount?
 }
 
@@ -275,4 +276,25 @@ enum WebhookEventStatus {
   PROCESSED
   FAILED
   SKIPPED
+}
+
+model Notification {
+  id      String    @id @default(uuid())
+
+  //who receives this Notification?
+  userId  String
+  user    User      @relation(fields: [userId], references: [id],onDelete: Cascade)
+
+  //what kinda Notification
+  type    String
+  title   String
+  message String?
+
+  isRead  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+
 }

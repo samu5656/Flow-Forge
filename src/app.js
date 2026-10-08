@@ -14,6 +14,7 @@ import redis from './config/redis.js';
 import "./workers/webhook.worker.js";
 import './workers/email.worker.js'; // This starts the worker!
 import { addEmailJob } from './queues/email.queue.js';
+import notificationRoutes from "./routes/notification.routes.js";
 
 const app = express();
 
@@ -35,6 +36,7 @@ app.use("/api/v1", taskRoutes);
 app.use("/api/v1", labelRoutes);
 app.use("/api/v1", milestoneRoutes);
 app.use("/api/v1", githubRoutes);
+app.use("/api/v1/", notificationRoutes);
 
 app.get("/health", async (req, res) => {
     try {
