@@ -12,6 +12,8 @@ import {
     disconnectGithubAccount
 } from "../services/github.service.js";
 import { processWebhookEvent } from "../services/webhook.service.js";
+import { addWebhookJob } from "../queues/webhook.queues.js";
+
 /*
  * Start GitHub OAuth.
  */
@@ -307,27 +309,40 @@ export const disconnectGithub =
 export const handleGithubWebhook = async (req, res, next) => {
     try {
         const deliveryId = req.headers['x-github-delivery'];
-        const action = req.body.action  || null;
+        const action = req.body.action || null;
         const eventType = req.headers['x-github-event'];
         const payload = req.body;
 
         console.log(`Recieved github event : [${eventType}] delivery:${deliveryId}`);
 
-        res.status(200).json({ success: true, message: 'Webhook recieved' });
-        
-        const result = await processWebhookEvent({
+        await addWebhookJob({
             deliveryId,
             eventType,
             action,
             payload
         });
 
-        if(result.alreadyProcessed){
-            console.log(`Skipped duplicate: ${deliveryId}`);
-        }
+        console.log(`[API] job queued.Acknowledging Github immediately.`);
+
+        res.status(200).json({ success: true, message: 'Webhook queued for processing' });
+
+        //MOVED TO WORKER
+        // const result = await processWebhookEvent({
+        //     deliveryId,
+        //     eventType,
+        //     action,
+        //     payload
+        // });
+
+        // if(result.alreadyProcessed){
+        //     console.log(`Skipped duplicate: ${deliveryId}`);
+        // }
 
     } catch (error) {
-        console.error("Webhook processing error: ",error);
-                // Note: We don't send next(error) here because we already sent the res.status(200)!'
+        console.error("Webhook processing error: ", error);
+        // Note: We don't send next(error) here because we already sent the res.status(200)!'
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to queue webhook' });
+        }
     }
 }

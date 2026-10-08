@@ -16,7 +16,7 @@ import {
 
 export const processWebhookEvent = async ({ deliveryId, eventType, action, payload }) => {
     //idempotency
-    const existingEvent = findWebhookEventByDeliveryId(deliveryId);
+    const existingEvent = await findWebhookEventByDeliveryId(deliveryId);
 
     if (existingEvent) {
         console.log("Duplicate webhook event");
@@ -31,7 +31,7 @@ export const processWebhookEvent = async ({ deliveryId, eventType, action, paylo
         action: action || null,
         payload,
         repositoryFullName,
-        status: PENDING
+        status: "PENDING"
     });
 
     //process

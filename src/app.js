@@ -11,6 +11,7 @@ import cookieParser from "cookie-parser";
 import milestoneRoutes from "./routes/milestone.routes.js";
 import githubRoutes from "./routes/github.routes.js";
 import redis from './config/redis.js';
+import "./workers/webhook.worker.js";
 import './workers/email.worker.js'; // This starts the worker!
 import { addEmailJob } from './queues/email.queue.js';
 
