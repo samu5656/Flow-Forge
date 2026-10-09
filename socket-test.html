@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head><title>Socket Test</title></head>
+<body>
+    <h2>My FlowForge Notifications</h2>
+    
+    <!-- We will inject new notifications into this list -->
+    <ul id="notification-list" style="font-family: sans-serif;">
+        <li><i>Waiting for new notifications...</i></li>
+    </ul>
+    
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        const socket = io('http://localhost:5000');
+        
+        socket.on('connect', () => {
+            // Replace with your real DB user ID again!
+            const myUserId = "f7e7a205-2b51-4b52-b86b-88b625453398"; 
+            socket.emit('authenticate', myUserId);
+        });
+
+        // ⚡ NEW: Listen for the server pushing a notification!
+        socket.on('new_notification', (data) => {
+            console.log("RECEIVED DATA FROM SERVER:", data);
+            
+            // Create a new bullet point on the web page
+            const list = document.getElementById('notification-list');
+            const newItem = document.createElement('li');
+            
+            newItem.innerHTML = `<b>${data.title}</b><br><small>${data.message}</small><hr>`;
+            newItem.style.color = "blue";
+            
+            // Add it to the top of the list!
+            list.prepend(newItem);
+        });
+    </script>
+</body>
+</html>
