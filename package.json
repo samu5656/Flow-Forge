@@ -11,6 +11,7 @@
     "prisma:migrate": "prisma migrate dev",
     "test": "cross-env NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules jest --forceExit"
   },
+  
   "repository": {
     "type": "git",
     "url": "git+https://github.com/samu5656/Flow-Forge.git"

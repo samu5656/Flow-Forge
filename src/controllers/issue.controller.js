@@ -25,13 +25,14 @@ export const createIssue = async (req, res, next) => {
 export const getIssuesByProject = async (req, res, next) => {
     try {
         const issues = await findIssuesByProjectService(
-            req.params.issueId,
-            req.params.projectId
+            req.params.projectId,
+            req.query
         );
 
         res.status(200).json({
             success: true,
-            data: issues
+            data: issues.data,
+            meta:issues.meta
         });
     } catch (error) {
         next(error);

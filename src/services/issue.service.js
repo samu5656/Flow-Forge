@@ -4,13 +4,8 @@ export const createIssueService = async(data,projectId)=>{
     return createIssue({...data,projectId});
 };
 
-export const findIssuesByProjectService = async(issueId,projectId)=>{
-    const issues = await findIssuesByProject(projectId);
-
-    if(!issues){ return null}
-
-    return issues;
-
+export const findIssuesByProjectService = async(projectId,filters)=>{
+    return await findIssuesByProject(projectId,filters);
 }
 
 export const findIssueByIdService = async(issueId,projectId)=>{
