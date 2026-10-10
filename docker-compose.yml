@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  #1.Postgres
+  postgres:
+    image: postgres:15-alpine
+    environment:
+       POSTGRES_USER: admin
+       POSTGRES_PASSWORD: adminpassword
+       POSTGRES_DB: flowforge
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/prodtgresql/postgres_data
+
+  #2.Redis
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/redis_data
+
+  #3.Node.js
+  api:
+    build: .
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      #Override localhost - tell node to look for postgres and redis instead
+      DATABASE_URL: "postgresql://admin:adminpassword@postgres:5432/flowforge?schema=public"
+      REDIS_URL: "redis://redis:6379"
+    depends_on:
+      - postgres
+      - redis
+    #Automatically run migrations, then start the server
+    command: sh -c "npx prisma migrate deploy && npm run dev"
+    volumes:
+    #This syncs you windows files to linux container for live realoading
+      - .:/app
+    #This protect the linux node_modules from being overwritten by windows
+      - /app/node_modules
+
+##To ensure postgres and redis doesnt deleted when you stop the docker container
+volumes:
+   postgres_data:
+   redis_data:

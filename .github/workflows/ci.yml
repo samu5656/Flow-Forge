@@ -1,0 +1,66 @@
+name: FlowForge CI Pipeline
+
+# 1. WHEN should this run? (Every time we push or open a PR to main)
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    # 2. WHERE should this run? (On a fresh Linux server hosted by GitHub)
+    runs-on: ubuntu-latest
+
+    # 3. WHAT dependencies do we need? (Spin up temporary DBs!)
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: adminpassword
+          POSTGRES_DB: flowforge_test
+        ports:
+          - 5432:5432
+        # This tells GitHub to wait until Postgres is fully booted before continuing
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    # 4. THE STEPS to execute
+    steps:
+      # Step A: Download our FlowForge code onto the GitHub server
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Step B: Install Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Step C: Install NPM packages
+      - name: Install Dependencies
+        run: npm install
+
+      # Step D: Push the Prisma schema into our temporary Postgres container
+      - name: Setup Database
+        env:
+          DATABASE_URL: postgresql://admin:adminpassword@localhost:5432/flowforge_test
+        run: npx prisma db push
+
+      # Step E: Finally, run our test suite!
+      - name: Run Tests
+        env:
+          DATABASE_URL: postgresql://admin:adminpassword@localhost:5432/flowforge_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: supersecret_test_key_for_github
+          ACCESS_TOKEN_SECRET: supersecret_test_key_for_github
+        run: npm run test

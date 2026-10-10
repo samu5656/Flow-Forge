@@ -18,6 +18,21 @@ import notificationRoutes from "./routes/notification.routes.js";
 
 const app = express();
 
+app.get("/health", async (req, res) => {
+    try {
+        await redis.ping();
+        res.status(200).json({
+            status: "ok",
+            redis: "connected"
+        });
+    } catch (error) {
+        res.status(200).json({
+            status: "ok",
+            redis: "disconnected"
+        });
+    }
+});
+
 app.use(helmet());
 app.use(cors());
 app.use(express.json({
@@ -38,20 +53,6 @@ app.use("/api/v1", milestoneRoutes);
 app.use("/api/v1", githubRoutes);
 app.use("/api/v1/", notificationRoutes);
 
-app.get("/health", async (req, res) => {
-    try {
-        await redis.ping();
-        res.status(200).json({
-            status: "ok",
-            redis: "connected"
-        });
-    } catch (error) {
-        res.status(200).json({
-            status: "ok",
-            redis: "disconnected"
-        });
-    }
-});
 
 app.post('/api/v1/test-email', async (req, res) => {
     const { email } = req.body;
