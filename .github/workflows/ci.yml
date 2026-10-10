@@ -61,6 +61,6 @@ jobs:
         env:
           DATABASE_URL: postgresql://admin:adminpassword@localhost:5432/flowforge_test
           REDIS_URL: redis://localhost:6379
-          JWT_SECRET: supersecret_test_key_for_github
-          ACCESS_TOKEN_SECRET: supersecret_test_key_for_github
+          JWT_ACCESS_SECRET: fake_github_access_secret_123
+          JWT_REFRESH_SECRET: fake_github_refresh_secret_123
         run: npm run test
