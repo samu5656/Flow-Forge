@@ -11,9 +11,14 @@
 // export default errorMiddleware;
 import { Prisma } from "@prisma/client";
 import { success } from "zod";
+import logger from "../config/logger.js";
 
 const errorMiddleware = (err,req,res,next)=>{
-  console.log(err);
+  logger.error(err.message,{
+    correlationId : req.correlationId,
+    stack:err.stack,
+    statusCode:err.statusCode || 500
+  })
 
   if(err instanceof Prisma.PrismaClientKnownRequestError){
     if(err.code==='P2002'){

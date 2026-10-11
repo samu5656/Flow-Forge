@@ -15,8 +15,15 @@ import "./workers/webhook.worker.js";
 import './workers/email.worker.js'; // This starts the worker!
 import { addEmailJob } from './queues/email.queue.js';
 import notificationRoutes from "./routes/notification.routes.js";
+import requestLogger from "./middleware/requestLogger.middleware.js";
 
 const app = express();
+
+app.use(requestLogger);
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+app.use(cors());
 
 app.get("/health", async (req, res) => {
     try {
@@ -33,10 +40,6 @@ app.get("/health", async (req, res) => {
     }
 });
 
-app.use(helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
-app.use(cors());
 //"If anyone asks for a URL starting with /uploads, serve the file from the uploads folder"
 app.use("/uploads",express.static('uploads'))
 app.use(express.json({
