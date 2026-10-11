@@ -9,7 +9,7 @@ const storage = multer.diskStorage({
     },
     filename: (req,file,cb)=>{
         //create a totaly unique filename so 2 users uploading profile.png dont overwrite
-        const uniqueSuffix = Date.now+"-"+Math.round(Math.random()*1E9);
+        const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
         cb(null,file.fieldname+"-"+uniqueSuffix+path.extname(file.originalname));
     }
 })

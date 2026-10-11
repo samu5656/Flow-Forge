@@ -33,7 +33,9 @@ app.get("/health", async (req, res) => {
     }
 });
 
-app.use(helmet());
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(cors());
 //"If anyone asks for a URL starting with /uploads, serve the file from the uploads folder"
 app.use("/uploads",express.static('uploads'))
