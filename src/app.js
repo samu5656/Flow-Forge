@@ -16,6 +16,7 @@ import './workers/email.worker.js'; // This starts the worker!
 import { addEmailJob } from './queues/email.queue.js';
 import notificationRoutes from "./routes/notification.routes.js";
 import requestLogger from "./middleware/requestLogger.middleware.js";
+import { apiLimiter } from "./middleware/rateLimiter.middleware.js";
 
 const app = express();
 
@@ -24,7 +25,7 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 app.use(cors());
-
+app.use(apiLimiter);
 app.get("/health", async (req, res) => {
     try {
         await redis.ping();

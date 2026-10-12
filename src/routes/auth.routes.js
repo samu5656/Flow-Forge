@@ -8,17 +8,18 @@ import { registerSchema } from "../validators/auth.validator.js";
 import authenticate from "../middleware/auth.middleware.js";
 import { upload } from "../middleware/upload.middleware.js";
 import { uploadAvatar } from "../controllers/auth.controller.js";
+import { authLimiter } from "../middleware/rateLimiter.middleware.js";
 
 const router = express.Router();
 
-router.post("/register", validate(registerSchema), register);
+router.post("/register", authLimiter,validate(registerSchema), register);
 
 router.post(
-    "/login",
+    "/login",authLimiter,
     validate(loginSchema),
     login
 );
-router.post("/refresh",refresh);
+router.post("/refresh",authLimiter,refresh);
 router.post("/logout",logout);
 router.get("/me", authenticate, me);
 //upload.single('avatar') tells Multer to look for a file attached to the field name "avatar"
