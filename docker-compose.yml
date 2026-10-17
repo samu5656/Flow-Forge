@@ -43,6 +43,19 @@ services:
     #This protect the linux node_modules from being overwritten by windows
       - /app/node_modules
 
+  #reverse proxy
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./uploads:/app/uploads:ro
+    depends_on:
+      - api
+
+
 ##To ensure postgres and redis doesnt deleted when you stop the docker container
 volumes:
    postgres_data:
