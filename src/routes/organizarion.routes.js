@@ -8,6 +8,8 @@ import authenticate from "../middleware/auth.middleware.js";
 import validate from "../middleware/validate.middleware.js";
 import { createOrganizationSchema, updateOrganizationSchema } from "../validators/organization.validator.js";
 import { createProject,getProject,getProjects,updateProject,deleteProject } from "../controllers/projects.controller.js";
+import { chatWithProjectAI } from "../controllers/ai.controller.js";
+import { chatSchema } from "../validators/ai.validator.js";
 const router = express.Router();
 
 router.post("/",authenticate,validate(createOrganizationSchema) ,createOrganization);
@@ -86,5 +88,13 @@ router.delete(
     requireOrganizationMembership,
     deleteProject
 );
+
+router.post(
+    "/:organizationId/projects/:projectId/ai/chat",
+    authenticate,
+    requireOrganizationMembership,
+    validate(chatSchema),
+    chatWithProjectAI
+)
 
 export default router;

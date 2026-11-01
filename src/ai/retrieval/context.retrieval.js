@@ -1,22 +1,23 @@
-import prisma from "../../lib/prisma.js"
+import prisma from "../../lib/prisma.js";
 
-//fetches real project data from postgre sql and give it as prompt to ai
+// Fetches real project data from PostgreSQL and formats it for the AI prompt
 export const getProjectContext = async (projectId, organizationId) => {
     const project = await prisma.project.findFirst({
         where: {
-            id: projectId, organizationId
+            id: projectId,
+            organizationId
         },
         include: {
-            issues: {
-                take: 20, //limit to recent 20 to conserve tokens
+            Issue: {
+                take: 20, // limit to recent 20 to conserve tokens
                 orderBy: { createdAt: "desc" },
                 select: {
                     id: true,
                     title: true,
+                    description: true,
                     status: true,
                     priority: true,
-                    assignee: { select: { name: true, email: true } },
-                    tasks: {
+                    Task: {
                         select: { title: true, completed: true }
                     }
                 }
@@ -24,27 +25,30 @@ export const getProjectContext = async (projectId, organizationId) => {
         }
     });
 
-    if (!project) return "No project data available";
+    if (!project) return "No project data available.";
 
-    //format to clean stuctured text
+    // Format to clean structured text
+    const issues = project.Issue || [];
     let context = `Project Name: ${project.name}\n`;
     context += `Project Description: ${project.description || "None"}\n`;
-    context += `Total Issues Tracked: ${project.issues.length}\n\n`;
+    context += `Total Issues Tracked: ${issues.length}\n\n`;
 
-    if(project.issues.length===0){
-        context+="There are currently no issues or tasks logged in this project.\n";
-    }else{
-        context+="Recent Issues & tasks\n";
-        project.issues.forEach((issue,index)=>{
-            const assigneeName = issue.assignee? issue.assignee.name: "Unassigned";
-            const taskSummary = issue.task.length>0?issue.tasks.map(t=>`${t.title} (${t.completed? "Done":"Pending"})`).join(","):"No subtasks";
+    if (issues.length === 0) {
+        context += "There are currently no issues or tasks logged in this project.\n";
+    } else {
+        context += "=== Recent Issues & Tasks ===\n";
+        issues.forEach((issue, index) => {
+            const taskSummary = issue.Task && issue.Task.length > 0
+                ? issue.Task.map(t => `${t.title} (${t.completed ? "Done" : "Pending"})`).join(", ")
+                : "No subtasks";
 
-            context+=`${index+1}.[${issue.status}] [Priority: ${issue.priority || "NORMAL"}] "$
-            {issue.title}"\n`;
-
-            context+= ` Assignee: ${assigneeName}\n`;
-            context+= ` SUbtasks: ${taskSummary}\n`;
+            context += `${index + 1}. [${issue.status}] [Priority: ${issue.priority || "MEDIUM"}] "${issue.title}"\n`;
+            if (issue.description) {
+                context += `   Description: ${issue.description}\n`;
+            }
+            context += `   Subtasks: ${taskSummary}\n`;
         });
     }
+
     return context;
 };
