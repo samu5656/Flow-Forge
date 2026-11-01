@@ -97,6 +97,7 @@ model Project {
   Milestone      Milestone[]
   organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   repositories   ProjectRepository[]
+  documents      ProjectDocument[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -242,4 +243,23 @@ enum WebhookEventStatus {
   PROCESSED
   FAILED
   SKIPPED
+}
+
+model ProjectDocument {
+  id          String    @id @default(uuid())
+  title       String    
+  content     String
+  category    String    @default("GENERAL") //ARCHITECTURE,API,ONBOARDING,GENERAL
+
+  projectId   String
+  project     Project   @relation(fields: [projectId], references:[id], onDelete: Cascade)
+
+  //We store the calculated embedding vector as a JSON array of floats [0.012,-0.045,...]
+  embedding   Json?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([projectId])
+  
 }
