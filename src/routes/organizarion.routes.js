@@ -10,6 +10,7 @@ import { createOrganizationSchema, updateOrganizationSchema } from "../validator
 import { createProject,getProject,getProjects,updateProject,deleteProject } from "../controllers/projects.controller.js";
 import { chatWithProjectAI } from "../controllers/ai.controller.js";
 import { chatSchema } from "../validators/ai.validator.js";
+import { createProjectDocument } from "../controllers/document.controller.js";
 const router = express.Router();
 
 router.post("/",authenticate,validate(createOrganizationSchema) ,createOrganization);
@@ -95,6 +96,13 @@ router.post(
     requireOrganizationMembership,
     validate(chatSchema),
     chatWithProjectAI
+)
+
+router.post(
+    "/:organizationId/projects/:projectId/documents",
+    authenticate,
+    requireOrganizationMembership,
+    createProjectDocument
 )
 
 export default router;

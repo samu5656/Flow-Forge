@@ -3,11 +3,21 @@ import { buildSystemPrompt } from "../ai/prompts/system.prompt.js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { projectAITools } from "../ai/tools/definitions.js";
 import { executeTool } from "../ai/tools/executors.js";
+import { findRelevantDocuments } from "../ai/retrieval/semantic.retrieval.js";
 
 export const chatWithProjectAIService = async ({ message, history = [], projectId, organizationId }) => {
     // 1. Fetch live database context
     const projectContext = await getProjectContext(projectId, organizationId);
-    const systemPrompt = buildSystemPrompt(projectContext);
+    const relevantDocs = await findRelevantDocuments(message,projectId,2);
+
+    let docContext="";
+    if(relevantDocs.length>0){
+        docContext  = "\n RELEVANT ARCHITECTURE & KNOWLEDGE BASE DOCS \n";
+        relevantDocs.forEach((doc,idx)=>{
+            docContext+=`[Doc ${idx+1}:${doc.title}(${doc.category})]\n${doc.content}\n\n`;
+        })
+    }
+    const systemPrompt = buildSystemPrompt(projectContext+docContext);
 
     // 2. Initialize Gemini with tools declared
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
