@@ -116,6 +116,8 @@ model Issue {
   Task        Task[]
 
   @@index([projectId])
+  @@index([projectId, status])
+  @@index([projectId, priority])
 }
 
 model Task {

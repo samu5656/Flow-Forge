@@ -8,6 +8,7 @@ import issueRoutes from "./routes/issue.routes.js";
 import taskRoutes from "./routes/task.routes.js";
 import labelRoutes from "./routes/label.routes.js";
 import cookieParser from "cookie-parser";
+import prisma from "./lib/prisma.js";
 import milestoneRoutes from "./routes/milestone.routes.js";
 import githubRoutes from "./routes/github.routes.js";
 import redis from './config/redis.js';
@@ -25,21 +26,43 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 app.use(cors());
-app.use(apiLimiter);
-app.get("/health", async (req, res) => {
+
+app.get("/health/live",(req,res)=>{
+    res.status(200).json({
+        status:"alive",
+        timestamp:new Date().toISOString()
+    });
+})
+app.get("/health/ready", async (req, res) => {
+    const checks = {
+        database:"disconnected",
+        redis:"disconnected"
+    }
+    let isHealthy = true;
+
+    try{
+        await prisma.$queryRaw`SELECT 1`;
+        checks.database="connected";
+    }catch(err){
+        isHealthy=false;
+        checks.database=`error:${err.message}`;
+    }
     try {
         await redis.ping();
-        res.status(200).json({
-            status: "ok",
-            redis: "connected"
-        });
+        checks.redis="connected";
     } catch (error) {
-        res.status(200).json({
-            status: "ok",
-            redis: "disconnected"
-        });
+        isHealthy=false;
+        checks.redis = `error:${error.message}`;
     }
+
+    const statusCode = isHealthy?200:503;
+    res.status(statusCode).json({
+        status:isHealthy?"Ready":"unhealthy",
+        checks,
+        timestamp: new Date().toISOString()
+    })
 });
+app.use(apiLimiter);
 
 //"If anyone asks for a URL starting with /uploads, serve the file from the uploads folder"
 app.use("/uploads",express.static('uploads'))
