@@ -20,7 +20,50 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { useSocket } from '../context/SocketContext';
 import { githubApi } from '../api/client';
+
+
+const formatRelativeTime = (dateStr) => {
+  if (!dateStr) return 'Just now';
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return dateStr;
+  const diffInSec = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (diffInSec < 60) return `${Math.max(1, diffInSec)}s ago`;
+  const diffInMin = Math.floor(diffInSec / 60);
+  if (diffInMin < 60) return `${diffInMin}m ago`;
+  const diffInHours = Math.floor(diffInMin / 60);
+  if (diffInHours < 24) return `${diffInHours}h ago`;
+  const diffInDays = Math.floor(diffInHours / 24);
+  return `${diffInDays}d ago`;
+};
+
+const getPayloadDetails = (d) => {
+  let p = d.payload;
+  if (typeof p === 'string') {
+    try { p = JSON.parse(p); } catch (e) { p = {}; }
+  } else if (!p) {
+    p = {};
+  }
+
+  const event = d.eventType || d.event;
+  if (event === 'ping') {
+    return `Ping event acknowledged from GitHub (${d.repositoryFullName || p.repository?.full_name || 'repository'})`;
+  }
+  if (event === 'push') {
+    const commitCount = p.commits?.length || 0;
+    const author = p.pusher?.name || p.sender?.login || 'developer';
+    const branch = p.ref ? p.ref.replace('refs/heads/', '') : 'main';
+    return `Pushed ${commitCount} commit${commitCount === 1 ? '' : 's'} to ${branch} by ${author}`;
+  }
+  if (event === 'issues') {
+    return `Issue ${d.action || 'updated'}: "${p.issue?.title || 'Untitled'}"`;
+  }
+  if (event === 'pull_request') {
+    return `PR #${p.pull_request?.number || ''} ${d.action || 'updated'}: "${p.pull_request?.title || 'Untitled'}"`;
+  }
+  return d.details || `Webhook event payload received for ${d.repositoryFullName || p.repository?.full_name || 'repository'}`;
+};
 
 export const GithubHub = () => {
   const { currentOrg, currentProject } = useWorkspace();
@@ -30,6 +73,7 @@ export const GithubHub = () => {
   const [userRepos, setUserRepos] = useState([]);
   const [loadingProjectRepos, setLoadingProjectRepos] = useState(false);
   const [loadingUserRepos, setLoadingUserRepos] = useState(false);
+  const [userReposError, setUserReposError] = useState('');
   const [isGithubConnected, setIsGithubConnected] = useState(false);
   const [connectingOAuth, setConnectingOAuth] = useState(false);
   const [disconnectingAccount, setDisconnectingAccount] = useState(false);
@@ -40,6 +84,50 @@ export const GithubHub = () => {
   const [selectedRepoId, setSelectedRepoId] = useState('');
   const [linkingRepo, setLinkingRepo] = useState(false);
   const [linkError, setLinkError] = useState('');
+
+
+  const { socket } = useSocket();
+  const [webhookDeliveries, setWebhookDeliveries] = useState([]);
+  const [loadingWebhooks, setLoadingWebhooks] = useState(false);
+
+  const fetchWebhookDeliveries = async () => {
+    setLoadingWebhooks(true);
+    try {
+      const res = await githubApi.getWebhooks();
+      const list = res.data?.data || [];
+      setWebhookDeliveries(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.warn('Could not fetch webhook deliveries:', err);
+    } finally {
+      setLoadingWebhooks(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchWebhookDeliveries();
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewDelivery = (event) => {
+      setWebhookDeliveries((prev) => {
+        const id = event.deliveryId || event.id;
+        const exists = prev.some((d) => (d.deliveryId || d.id) === id);
+        if (exists) {
+          return prev.map((d) => ((d.deliveryId || d.id) === id ? { ...d, ...event } : d));
+        }
+        return [event, ...prev];
+      });
+    };
+
+    socket.on('webhook:delivered', handleNewDelivery);
+    socket.on('webhook:queued', handleNewDelivery);
+
+    return () => {
+      socket.off('webhook:delivered', handleNewDelivery);
+      socket.off('webhook:queued', handleNewDelivery);
+    };
+  }, [socket]);
 
   // Webhook Simulation / Ingress state
   const [simulatingWebhook, setSimulatingWebhook] = useState(false);
@@ -151,6 +239,12 @@ export const GithubHub = () => {
     }
   };
 
+  const handleOpenLinkModal = () => {
+    setIsLinkModalOpen(true);
+    setLinkError('');
+    checkGithubConnection();
+  };
+
   // Link Repository to Project
   const handleLinkRepository = async (e) => {
     e.preventDefault();
@@ -191,19 +285,23 @@ export const GithubHub = () => {
   };
 
   // Webhook Test trigger simulation
-  const handleSimulateWebhook = () => {
+    const handleSimulateWebhook = () => {
     setSimulatingWebhook(true);
     setTimeout(() => {
       const newDel = {
-        id: `del_${Math.random().toString(16).substring(2, 10)}`,
-        event: 'push',
+        id: `sim_${Math.random().toString(16).substring(2, 10)}`,
+        deliveryId: `del_${Math.random().toString(16).substring(2, 10)}`,
+        eventType: 'push',
         action: null,
-        ref: 'refs/heads/frontend-feat',
         status: 'PROCESSED',
-        timestamp: 'Just now',
-        details: 'Simulated push delivery received by /api/v1/github/webhook',
+        createdAt: new Date().toISOString(),
+        payload: {
+          ref: 'refs/heads/frontend-feat',
+          commits: [1],
+          pusher: { name: 'developer' },
+        },
       };
-      setSimulatedDeliveries((prev) => [newDel, ...prev]);
+      setWebhookDeliveries((prev) => [newDel, ...prev]);
       setSimulatingWebhook(false);
     }, 600);
   };
@@ -277,7 +375,7 @@ export const GithubHub = () => {
 
         {isGithubConnected && (
           <button
-            onClick={() => setIsLinkModalOpen(true)}
+            onClick={handleOpenLinkModal}
             disabled={!currentProject}
             className="px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-brand-500/20 disabled:opacity-50 transition-all shrink-0"
           >
@@ -307,7 +405,7 @@ export const GithubHub = () => {
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          Webhook Delivery Center
+          Activity & Webhooks
         </button>
         <button
           onClick={() => setActiveTab('activity')}
@@ -338,7 +436,7 @@ export const GithubHub = () => {
               </p>
               {isGithubConnected && (
                 <button
-                  onClick={() => setIsLinkModalOpen(true)}
+                  onClick={handleOpenLinkModal}
                   className="mt-4 px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold inline-flex items-center space-x-1.5 shadow-md"
                 >
                   <Plus className="w-4 h-4" />
@@ -408,78 +506,94 @@ export const GithubHub = () => {
       {/* Tab 2: Webhook Delivery Center */}
       {activeTab === 'webhooks' && (
         <div className="space-y-4">
-          <div className="glass-panel p-5 rounded-2xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h3 className="text-sm font-bold text-white flex items-center space-x-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>HMAC-SHA256 Webhook Verification</span>
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Incoming events from <code className="text-brand-300 font-mono">POST /api/v1/github/webhook</code> are cryptographically verified via secret signature and queued asynchronously in Redis BullMQ.
-              </p>
-            </div>
-
-            <button
-              onClick={handleSimulateWebhook}
-              disabled={simulatingWebhook}
-              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono border border-slate-700 flex items-center space-x-2 transition-colors shrink-0"
-            >
-              {simulatingWebhook ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-400" />
-              ) : (
-                <Send className="w-3.5 h-3.5 text-brand-400" />
-              )}
-              <span>Simulate Webhook Delivery</span>
-            </button>
-          </div>
-
           <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden">
-            <div className="px-6 py-3.5 border-b border-slate-800 flex items-center justify-between">
-              <span className="text-xs font-mono font-bold text-slate-300 uppercase">
-                Recent Ingress Deliveries
-              </span>
-              <span className="text-[11px] font-mono text-slate-500">
-                Idempotency by x-github-delivery
-              </span>
+            <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                  Recent Deliveries & Activity
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Live updates and events received from your connected GitHub repositories.
+                </p>
+              </div>
+
+              <button
+                onClick={fetchWebhookDeliveries}
+                disabled={loadingWebhooks}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 flex items-center space-x-1.5 transition-colors shadow-sm"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingWebhooks ? 'animate-spin text-brand-400' : 'text-slate-400'}`} />
+                <span>Refresh</span>
+              </button>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-900/60 text-slate-400 border-b border-slate-800 font-mono text-[11px]">
-                  <tr>
-                    <th className="py-3 px-6">Delivery UUID</th>
-                    <th className="py-3 px-6">Event Type</th>
-                    <th className="py-3 px-6">Payload Summary</th>
-                    <th className="py-3 px-6">Status</th>
-                    <th className="py-3 px-6">Received</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                  {simulatedDeliveries.map((d) => (
-                    <tr key={d.id} className="hover:bg-slate-800/30 transition-colors">
-                      <td className="py-3 px-6 font-mono text-[11px] text-brand-300">
-                        {d.id}
-                      </td>
-                      <td className="py-3 px-6 font-mono text-[11px]">
-                        <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700">
-                          {d.event} {d.action ? `(${d.action})` : ''}
-                        </span>
-                      </td>
-                      <td className="py-3 px-6 text-slate-300 max-w-sm truncate">
-                        {d.details}
-                      </td>
-                      <td className="py-3 px-6 font-mono text-[10px]">
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                          {d.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-6 text-slate-500 font-mono text-[11px]">
-                        {d.timestamp}
-                      </td>
+              {loadingWebhooks && webhookDeliveries.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-500 font-mono flex items-center justify-center space-x-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-brand-400" />
+                  <span>Loading recent events...</span>
+                </div>
+              ) : webhookDeliveries.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-500 font-mono space-y-1">
+                  <p>No repository events recorded yet.</p>
+                  <p className="text-[11px] text-slate-600">
+                    Events will appear here automatically when actions occur in your connected GitHub repository.
+                  </p>
+                </div>
+              ) : (
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-900/60 text-slate-400 border-b border-slate-800 text-[11px]">
+                    <tr>
+                      <th className="py-3 px-6">Event ID</th>
+                      <th className="py-3 px-6">Event</th>
+                      <th className="py-3 px-6">Summary</th>
+                      <th className="py-3 px-6">Status</th>
+                      <th className="py-3 px-6">Time</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                    {webhookDeliveries.map((d) => {
+                      const eventName = d.eventType || d.event || 'update';
+                      const deliveryUuid = d.deliveryId || d.id || 'unknown';
+                      const statusVal = d.status || 'PROCESSED';
+                      const timeStr = formatRelativeTime(d.createdAt || d.processedAt || d.timestamp);
+                      const summary = getPayloadDetails(d);
+
+                      return (
+                        <tr key={d.id || deliveryUuid} className="hover:bg-slate-800/30 transition-colors">
+                          <td className="py-3 px-6 font-mono text-[11px] text-brand-300">
+                            {deliveryUuid.length > 18 ? deliveryUuid.substring(0, 14) + '...' : deliveryUuid}
+                          </td>
+                          <td className="py-3 px-6 text-[11px]">
+                            <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 capitalize font-medium">
+                              {eventName} {d.action ? `(${d.action})` : ''}
+                            </span>
+                          </td>
+                          <td className="py-3 px-6 text-slate-300 max-w-sm truncate" title={summary}>
+                            {summary}
+                          </td>
+                          <td className="py-3 px-6 text-[10px]">
+                            <span
+                              className={`px-2 py-0.5 rounded-full border font-medium ${
+                                statusVal === 'PROCESSED'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                  : statusVal === 'PENDING'
+                                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                                  : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                              }`}
+                            >
+                              {statusVal}
+                            </span>
+                          </td>
+                          <td className="py-3 px-6 text-slate-400 text-[11px]">
+                            {timeStr}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </div>
@@ -496,7 +610,7 @@ export const GithubHub = () => {
           <div className="pt-2">
             <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[11px] font-mono">
               <Check className="w-3 h-3" />
-              <span>BullMQ Queue Webhook Worker Listening</span>
+              <span>Automatic Sync Active</span>
             </span>
           </div>
         </div>

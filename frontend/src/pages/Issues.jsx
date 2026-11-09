@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   Clock,
   ArrowUpDown,
+  AlertCircle,
 } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { issueApi } from '../api/client';
@@ -40,25 +41,6 @@ export const Issues = () => {
   const [dragOverCol, setDragOverCol] = useState(null);
   const [isDraggingActive, setIsDraggingActive] = useState(false);
 
-  // Local storage helpers to preserve status moves across fetches/reloads
-  const getStatusOverrides = () => {
-    try {
-      return JSON.parse(localStorage.getItem('flowforge_status_overrides') || '{}');
-    } catch {
-      return {};
-    }
-  };
-
-  const setStatusOverride = (issueId, status) => {
-    try {
-      const current = getStatusOverrides();
-      current[issueId] = status;
-      localStorage.setItem('flowforge_status_overrides', JSON.stringify(current));
-    } catch (e) {
-      console.warn('Storage override write error:', e);
-    }
-  };
-
   // Prevent browser window from hijacking drop events and reloading the page
   useEffect(() => {
     const handleWindowDragOver = (e) => {
@@ -83,7 +65,6 @@ export const Issues = () => {
     setLoading(true);
     setError('');
     try {
-      // Use limit=100 to populate comprehensive Kanban boards
       const params = {
         page: currentPage,
         limit: 100,
@@ -93,14 +74,7 @@ export const Issues = () => {
       }
       const res = await issueApi.list(currentOrg.id, currentProject.id, params);
       const rawList = res.data?.data || [];
-      const overrides = getStatusOverrides();
-      const list = (Array.isArray(rawList) ? rawList : []).map((issue) => {
-        if (overrides[issue.id]) {
-          return { ...issue, status: overrides[issue.id] };
-        }
-        return issue;
-      });
-      setIssues(list);
+      setIssues(Array.isArray(rawList) ? rawList : []);
       if (res.data?.meta) {
         setMeta(res.data.meta);
       }
@@ -121,9 +95,6 @@ export const Issues = () => {
   };
 
   const handleIssueUpdated = (updatedIssue) => {
-    if (updatedIssue?.id && updatedIssue?.status) {
-      setStatusOverride(updatedIssue.id, updatedIssue.status);
-    }
     setIssues((prev) =>
       prev.map((i) => (i.id === updatedIssue.id ? updatedIssue : i))
     );
@@ -153,7 +124,6 @@ export const Issues = () => {
   const handleDragEnd = () => {
     setDraggedIssueId(null);
     setDragOverCol(null);
-    // Delay resetting isDraggingActive slightly to prevent triggering card onClick
     setTimeout(() => {
       setIsDraggingActive(false);
     }, 100);
@@ -195,21 +165,29 @@ export const Issues = () => {
       return;
     }
 
-    // Persist in local storage override
-    setStatusOverride(issueId, targetStatus);
+    const previousStatus = currentIssue.status;
 
     // Optimistic UI update
     setIssues((prev) =>
       prev.map((i) => (i.id === issueId ? { ...i, status: targetStatus } : i))
     );
 
-    // Persist to backend without resetting UI on backend schema failure
     try {
-      await issueApi.update(currentOrg.id, currentProject.id, issueId, {
+      const res = await issueApi.update(currentOrg.id, currentProject.id, issueId, {
         status: targetStatus,
       });
+      if (res.data?.data) {
+        setIssues((prev) =>
+          prev.map((i) => (i.id === issueId ? res.data.data : i))
+        );
+      }
     } catch (err) {
-      console.warn('Backend issue update note:', err?.response?.data?.message || err.message);
+      console.error('Failed to update issue status:', err);
+      // Rollback to previous status on server failure
+      setIssues((prev) =>
+        prev.map((i) => (i.id === issueId ? { ...i, status: previousStatus } : i))
+      );
+      alert(err.response?.data?.message || 'Failed to update issue status on server.');
     }
   };
 
@@ -219,18 +197,27 @@ export const Issues = () => {
     e.preventDefault();
     if (issue.status === targetStatus) return;
 
-    setStatusOverride(issue.id, targetStatus);
+    const previousStatus = issue.status;
 
     setIssues((prev) =>
       prev.map((i) => (i.id === issue.id ? { ...i, status: targetStatus } : i))
     );
 
     try {
-      await issueApi.update(currentOrg.id, currentProject.id, issue.id, {
+      const res = await issueApi.update(currentOrg.id, currentProject.id, issue.id, {
         status: targetStatus,
       });
+      if (res.data?.data) {
+        setIssues((prev) =>
+          prev.map((i) => (i.id === issue.id ? res.data.data : i))
+        );
+      }
     } catch (err) {
-      console.warn('Backend quick-move note:', err?.response?.data?.message || err.message);
+      console.error('Failed to quick-move issue:', err);
+      setIssues((prev) =>
+        prev.map((i) => (i.id === issue.id ? { ...i, status: previousStatus } : i))
+      );
+      alert(err.response?.data?.message || 'Failed to update issue status on server.');
     }
   };
 
@@ -267,7 +254,7 @@ export const Issues = () => {
           <h1 className="text-2xl font-bold text-white tracking-tight flex items-center space-x-2">
             <span>Issues & Kanban Board</span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono">
-              Drag & Drop Enabled
+              Live API
             </span>
           </h1>
           <p className="text-xs text-slate-400 mt-1">
@@ -461,7 +448,7 @@ export const Issues = () => {
                               {columns
                                 .filter((c) => c.key !== issue.status)
                                 .map((target) => (
-                                  <button
+                                   <button
                                     key={target.key}
                                     type="button"
                                     onClick={(e) => handleQuickMove(e, issue, target.key)}

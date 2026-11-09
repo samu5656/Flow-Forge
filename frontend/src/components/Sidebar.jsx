@@ -51,24 +51,24 @@ export const Sidebar = () => {
 
   const futureLinks = [
     {
-      name: 'AI Copilot',
+      name: 'AI Assistant',
       path: '/ai-assistant',
       icon: Bot,
-      badge: 'AI RAG',
+      badge: 'Assistant',
       badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
     },
     {
       name: 'Deployments',
       path: '/deployments',
       icon: Rocket,
-      badge: 'CI/CD',
+      badge: 'Releases',
       badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
     },
     {
-      name: 'Observability',
+      name: 'Workspace Insights',
       path: '/observability',
       icon: Activity,
-      badge: 'Health',
+      badge: 'Overview',
       badgeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
     },
   ];
@@ -93,7 +93,7 @@ export const Sidebar = () => {
                 v1.0
               </span>
             </span>
-            <span className="text-[11px] text-slate-400">Developer Platform</span>
+            <span className="text-[11px] text-slate-400">Project Management</span>
           </div>
         </div>
 

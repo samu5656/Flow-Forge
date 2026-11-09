@@ -62,9 +62,6 @@ export const IssueDetailDrawer = ({ issueId, isOpen, onClose, onUpdated }) => {
     setIssue(updated);
     onUpdated(updated);
     try {
-      const current = JSON.parse(localStorage.getItem('flowforge_status_overrides') || '{}');
-      current[issue.id] = newStatus;
-      localStorage.setItem('flowforge_status_overrides', JSON.stringify(current));
       await issueApi.update(currentOrg.id, currentProject.id, issue.id, {
         status: newStatus,
       });

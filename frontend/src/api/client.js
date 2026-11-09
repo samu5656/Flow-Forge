@@ -113,6 +113,7 @@ export const orgApi = {
   create: (data) => api.post('/organizations', data),
   update: (id, data) => api.patch(`/organizations/${id}`, data),
   delete: (id) => api.delete(`/organizations/${id}`),
+  getMembers: (orgId) => api.get(`/organizations/${orgId}/members`),
 };
 
 export const teamApi = {
@@ -121,6 +122,8 @@ export const teamApi = {
   create: (orgId, data) => api.post(`/organizations/${orgId}/teams`, data),
   update: (orgId, teamId, data) => api.patch(`/organizations/${orgId}/teams/${teamId}`, data),
   delete: (orgId, teamId) => api.delete(`/organizations/${orgId}/teams/${teamId}`),
+  addMember: (orgId, teamId, userId) => api.post(`/organizations/${orgId}/teams/${teamId}/members`, { userId }),
+  removeMember: (orgId, teamId, userId) => api.delete(`/organizations/${orgId}/teams/${teamId}/members/${userId}`),
 };
 
 export const projectApi = {
@@ -187,6 +190,7 @@ export const githubApi = {
     api.post(`/organizations/${orgId}/projects/${projectId}/github`, data),
   disconnectProjectRepo: (orgId, projectId, repoId) =>
     api.delete(`/organizations/${orgId}/projects/${projectId}/github/${repoId}`),
+  getWebhooks: () => api.get('/github/webhooks'),
 };
 
 export const notificationApi = {
@@ -194,8 +198,23 @@ export const notificationApi = {
   markAsRead: (id) => api.post(`/notifications/${id}/read`),
 };
 
+export const aiApi = {
+  chat: (orgId, projectId, data) =>
+    api.post(`/organizations/${orgId}/projects/${projectId}/ai/chat`, data),
+};
+
+export const documentApi = {
+  list: (orgId, projectId) =>
+    api.get(`/organizations/${orgId}/projects/${projectId}/documents`),
+  create: (orgId, projectId, data) =>
+    api.post(`/organizations/${orgId}/projects/${projectId}/documents`, data),
+  delete: (orgId, projectId, documentId) =>
+    api.delete(`/organizations/${orgId}/projects/${projectId}/documents/${documentId}`),
+};
+
 export const healthApi = {
-  check: () => axios.get('/health'),
+  check: () => api.get('/health'),
+  dispatchTestEmail: (email) => api.post('/test-email', { email }),
 };
 
 export default api;

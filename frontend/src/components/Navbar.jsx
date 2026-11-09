@@ -5,7 +5,7 @@ import {
   Wifi,
   WifiOff,
   ChevronRight,
-  Terminal,
+  Building2,
 } from 'lucide-react';
 import { useSocket } from '../context/SocketContext';
 import { useWorkspace } from '../context/WorkspaceContext';
@@ -22,7 +22,7 @@ export const Navbar = () => {
       {/* Left: Breadcrumbs */}
       <div className="flex items-center space-x-2 text-xs">
         <span className="text-slate-500 font-mono flex items-center space-x-1">
-          <Terminal className="w-3.5 h-3.5 text-slate-500" />
+          <Building2 className="w-3.5 h-3.5 text-slate-500" />
           <span>workspace</span>
         </span>
         <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
@@ -43,7 +43,7 @@ export const Navbar = () => {
       <div className="flex items-center space-x-4">
         {/* Real-time Socket status indicator */}
         <div
-          title={isConnected ? 'WebSocket Connected' : 'WebSocket Disconnected'}
+          title={isConnected ? 'Connected to workspace' : 'Offline'}
           className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono border transition-all ${
             isConnected
               ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
@@ -55,7 +55,7 @@ export const Navbar = () => {
               isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'
             }`}
           />
-          <span>{isConnected ? 'Real-Time Sync' : 'Offline'}</span>
+          <span>{isConnected ? 'Live' : 'Offline'}</span>
         </div>
 
         {/* Notifications Icon with Dropdown */}

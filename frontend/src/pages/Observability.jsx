@@ -15,7 +15,6 @@ import {
   Send,
   Loader2,
 } from 'lucide-react';
-import axios from 'axios';
 import { healthApi } from '../api/client';
 
 export const Observability = () => {
@@ -38,7 +37,12 @@ export const Observability = () => {
       setHealth(res.data);
       setLatencyMs(Math.round(end - start));
     } catch (err) {
-      setHealth({ status: 'offline', redis: 'disconnected' });
+      setHealth({
+        status: 'offline',
+        redis: 'disconnected',
+        database: 'disconnected',
+        error: err.response?.data?.message || err.message,
+      });
       setLatencyMs(null);
     } finally {
       setLoading(false);
@@ -59,7 +63,7 @@ export const Observability = () => {
     setSendingEmail(true);
     setEmailStatus(null);
     try {
-      const res = await axios.post('/api/v1/test-email', { email: testEmail.trim() });
+      const res = await healthApi.dispatchTestEmail(testEmail.trim());
       setEmailStatus({
         type: 'success',
         text: res.data?.message || 'Email job queued in Redis BullMQ successfully!',
@@ -81,7 +85,7 @@ export const Observability = () => {
           <h1 className="text-2xl font-bold text-white tracking-tight flex items-center space-x-2">
             <span>Observability & Infrastructure Health</span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono">
-              /health Live Ping
+              /api/v1/health Live Ping
             </span>
           </h1>
           <p className="text-xs text-slate-400 mt-1">
@@ -119,7 +123,7 @@ export const Observability = () => {
           </div>
           <h3 className="text-sm font-bold text-white">Express API Server</h3>
           <p className="text-[11px] text-slate-400">
-            Node.js HTTP Server listening on port 5000 with Helmet and CORS.
+            Node.js HTTP Server listening on port 5000 with Helmet, RateLimiting & CORS.
           </p>
           <div className="pt-2 border-t border-slate-800/80 text-[10px] text-slate-500 font-mono">
             Latency: <span className="text-brand-300">{latencyMs !== null ? `${latencyMs}ms` : 'offline'}</span>
@@ -144,10 +148,10 @@ export const Observability = () => {
           </div>
           <h3 className="text-sm font-bold text-white">Redis Cache & Ping</h3>
           <p className="text-[11px] text-slate-400">
-            Redis memory store verified via ping. Handles queues & caching.
+            Redis memory store verified via ping. Handles BullMQ queues & caching.
           </p>
           <div className="pt-2 border-t border-slate-800/80 text-[10px] text-slate-500 font-mono">
-            Status: <span className="text-emerald-400">{health?.redis || 'n/a'}</span>
+            Status: <span className={health?.redis === 'connected' ? 'text-emerald-400' : 'text-amber-400'}>{health?.redis || 'n/a'}</span>
           </div>
         </div>
 
@@ -157,16 +161,20 @@ export const Observability = () => {
             <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400">
               <Zap className="w-5 h-5" />
             </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono border bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-              ACTIVE
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono border ${
+              health?.redis === 'connected'
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+            }`}>
+              {health?.redis === 'connected' ? 'ACTIVE' : 'IDLE'}
             </span>
           </div>
           <h3 className="text-sm font-bold text-white">BullMQ Asynchronous Workers</h3>
           <p className="text-[11px] text-slate-400">
-            Active workers for emailQueue and webhookQueue with retries.
+            Active background workers for emailQueue and webhookQueue with retries.
           </p>
           <div className="pt-2 border-t border-slate-800/80 text-[10px] text-slate-500 font-mono">
-            Workers: <span className="text-purple-300">webhook & email</span>
+            Workers: <span className="text-purple-300">webhook.worker & email.worker</span>
           </div>
         </div>
 
@@ -176,16 +184,20 @@ export const Observability = () => {
             <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
               <Database className="w-5 h-5" />
             </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono border bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-              OPTIMIZED
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono border ${
+              health?.database === 'connected'
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+            }`}>
+              {health?.database === 'connected' ? 'CONNECTED' : 'DISCONNECTED'}
             </span>
           </div>
           <h3 className="text-sm font-bold text-white">PostgreSQL & Prisma ORM</h3>
           <p className="text-[11px] text-slate-400">
-            Relational tables with composite indexes and cascade deletes.
+            Relational tables with composite indexes, cascade deletes, and migrations.
           </p>
           <div className="pt-2 border-t border-slate-800/80 text-[10px] text-slate-500 font-mono">
-            Provider: <span className="text-blue-300">postgresql</span>
+            DB Status: <span className={health?.database === 'connected' ? 'text-blue-300' : 'text-rose-400'}>{health?.database || 'n/a'}</span>
           </div>
         </div>
       </div>
@@ -246,7 +258,7 @@ export const Observability = () => {
       <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold text-slate-300 uppercase font-mono">
-            Diagnostic Health Payload (/health)
+            Diagnostic Health Payload (/api/v1/health)
           </h3>
           <span className="text-[11px] text-slate-500 font-mono">
             Checked at {lastCheck || 'initial load'}
@@ -255,16 +267,9 @@ export const Observability = () => {
 
         <pre className="p-4 rounded-xl bg-slate-950 text-brand-300 text-xs font-mono border border-slate-800 overflow-x-auto">
           {JSON.stringify(
-            {
-              status: health?.status || 'ok',
-              redis: health?.redis || 'connected',
-              database: 'connected (PostgreSQL)',
-              bullmq: {
-                workers: ['email.worker.js', 'webhook.worker.js'],
-                queues: ['emailQueue', 'webhookQueue'],
-              },
-              httpLatency: `${latencyMs || 12}ms`,
-              timestamp: new Date().toISOString(),
+            health || {
+              status: 'checking',
+              message: 'Connecting to /api/v1/health...',
             },
             null,
             2

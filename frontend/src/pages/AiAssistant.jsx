@@ -4,43 +4,57 @@ import {
   Sparkles,
   Send,
   Database,
-  ShieldCheck,
-  Check,
-  X,
   FileText,
   CornerDownLeft,
-  Terminal,
-  Cpu,
-  Layers,
-  HelpCircle,
-  FolderGit2,
-  AlertTriangle,
   Loader2,
-  RefreshCw,
   Trash2,
+  Plus,
+  X,
+  AlertCircle,
+  CheckCircle2,
+  BookOpen,
+  FolderGit2,
+  Calendar,
+  Layers,
+  Search,
 } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { useAuth } from '../context/AuthContext';
-import { issueApi } from '../api/client';
+import { aiApi, documentApi } from '../api/client';
 
 export const AiAssistant = () => {
   const { currentOrg, currentProject } = useWorkspace();
   const { user } = useAuth();
 
-  const [activeModel, setActiveModel] = useState('FlowForge-RAG-v2 (Local/Ollama & Cloud)');
-  const [selectedContextSource, setSelectedContextSource] = useState('ALL');
+  const [activeModel, setActiveModel] = useState('Google Gemini (Live Project Context)');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [history, setHistory] = useState([]);
   const [messages, setMessages] = useState([
     {
       id: 1,
       sender: 'assistant',
-      text: `Hello ${user?.name?.split(' ')[0] || 'Developer'}! I am your FlowForge AI Assistant. I have indexed the project documentation, schemas, GitHub pull requests, issues, and deployment logs for ${currentProject?.name || 'this workspace'}.\n\nHow can I help you today? You can ask me to summarize critical issues, inspect deployment failures, or invoke tools like creating issues or tasks.`,
-      sources: ['schema.prisma', 'README.md', 'BullMQ Queue Worker'],
-      toolCall: null,
+      text: `Hello ${user?.name?.split(' ')[0] || 'Developer'}! I am your FlowForge AI Assistant.\n\nI have access to live database context for ${currentProject?.name || 'your active project'}, including current issues, tasks, milestones, labels, and project documentation.\n\nHow can I help you? You can ask me to analyze project status, summarize critical bugs, create new issues, or add subtasks!`,
       timestamp: 'Just now',
     },
   ]);
   const [input, setInput] = useState('');
+  const [errorBanner, setErrorBanner] = useState('');
+
+  // Knowledge Base Documents State
+  const [documents, setDocuments] = useState([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+  const [isKbDrawerOpen, setIsKbDrawerOpen] = useState(false);
+  const [docSearchQuery, setDocSearchQuery] = useState('');
+
+  // Knowledge Base Document Ingestion Modal
+  const [isDocModalOpen, setIsDocModalOpen] = useState(false);
+  const [docTitle, setDocTitle] = useState('');
+  const [docCategory, setDocCategory] = useState('ARCHITECTURE');
+  const [docContent, setDocContent] = useState('');
+  const [isIngestingDoc, setIsIngestingDoc] = useState(false);
+  const [docSuccessMsg, setDocSuccessMsg] = useState('');
+  const [docErrorMsg, setDocErrorMsg] = useState('');
+
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -51,24 +65,63 @@ export const AiAssistant = () => {
     scrollToBottom();
   }, [messages, isProcessing]);
 
+  // Fetch indexed project documents whenever project changes
+  const fetchDocuments = async () => {
+    if (!currentOrg?.id || !currentProject?.id) {
+      setDocuments([]);
+      return;
+    }
+    setLoadingDocs(true);
+    try {
+      const res = await documentApi.list(currentOrg.id, currentProject.id);
+      const list = res.data?.data || [];
+      setDocuments(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.warn('Could not load project documents:', err);
+      setDocuments([]);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDocuments();
+    if (currentProject) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          sender: 'assistant',
+          text: `Active project switched to "${currentProject.name}". Context is now synchronized with this project.`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+      setHistory([]);
+    }
+  }, [currentOrg?.id, currentProject?.id]);
+
   // Prompt suggestions
   const samplePrompts = [
-    'Which project issues currently have CRITICAL priority?',
-    'Explain the BullMQ webhook signature verification architecture',
-    'Draft a new issue for JWT token rotation security audit',
-    'Analyze why the latest staging build experienced high latency',
+    'What is the current status of all issues in this project?',
+    'List all unresolved tasks that need attention',
+    'Create an issue titled "Security audit: Verify JWT refresh tokens"',
+    'Summarize this project architecture and knowledge base documents',
   ];
 
-  const handleSend = (textToSend) => {
+  const handleSend = async (textToSend) => {
     const query = typeof textToSend === 'string' ? textToSend : input;
     if (!query.trim() || isProcessing) return;
 
+    if (!currentOrg?.id || !currentProject?.id) {
+      setErrorBanner('Please select an Organization and a Project from the sidebar before chatting with AI.');
+      return;
+    }
+
+    setErrorBanner('');
     const userMessage = {
       id: Date.now(),
       sender: 'user',
       text: query.trim(),
-      sources: null,
-      toolCall: null,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
@@ -76,124 +129,132 @@ export const AiAssistant = () => {
     setInput('');
     setIsProcessing(true);
 
-    // AI Semantic Retrieval & Tool Decision Logic
-    setTimeout(async () => {
-      let aiResponseText = '';
-      let retrievedSources = [];
-      let toolCallData = null;
+    try {
+      const res = await aiApi.chat(currentOrg.id, currentProject.id, {
+        message: query.trim(),
+        history: history,
+      });
 
-      const lower = query.toLowerCase();
+      if (res.data?.success && res.data?.data) {
+        const { reply, history: updatedHistory } = res.data.data;
+        if (updatedHistory && Array.isArray(updatedHistory)) {
+          setHistory(updatedHistory);
+        }
 
-      if (lower.includes('critical') || lower.includes('issue')) {
-        aiResponseText = `Based on project RAG retrieval across the database and issue tracker, I identified that unresolved items should be addressed in the current sprint. I can invoke the controlled backend tool getIssues() to inspect the latest issue statuses.`;
-        retrievedSources = ['issue.service.js', 'prisma/schema.prisma (Issue model)'];
-        toolCallData = {
-          toolName: 'getIssues',
-          params: { status: 'OPEN', priority: 'CRITICAL', projectId: currentProject?.id || 'default' },
-          status: 'pending',
-          description: 'Fetch all unresolved issues filtered by critical priority from PostgreSQL',
+        const botMessage = {
+          id: Date.now() + 1,
+          sender: 'assistant',
+          text: reply || 'I received your request but have no response content.',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
-      } else if (lower.includes('draft') || lower.includes('create issue')) {
-        aiResponseText = `I have drafted an issue specification based on your prompt. To prevent unauthorized or unintended database modifications, human-in-the-loop authorization is required before this tool can execute:`;
-        retrievedSources = ['auth.validator.js', 'src/middleware/auth.middleware.js'];
-        toolCallData = {
-          toolName: 'createIssue',
-          params: {
-            title: 'Security Audit: Refresh token rotation verification',
-            priority: 'HIGH',
-            status: 'OPEN',
-            description: 'Audit refresh token revocation in PostgreSQL RefreshToken table upon logout',
-          },
-          status: 'pending',
-          description: 'Create a new issue in the active project workspace',
-        };
-      } else if (lower.includes('webhook') || lower.includes('bullmq') || lower.includes('signature')) {
-        aiResponseText = `The webhook ingestion pipeline operates asynchronously:
-1. GitHub sends an event to /api/v1/github/webhook.
-2. verifyGithubSignature middleware computes the HMAC-SHA256 hash using process.env.GITHUB_WEBHOOK_SECRET and verifies against x-hub-signature-256.
-3. If valid, the raw payload is enqueued into the BullMQ webhookQueue and acknowledged with HTTP 200 within 50ms.
-4. webhook.worker.js dequeues the job, validates deliveryId idempotency in WebhookEvent, and executes the handler.`;
-        retrievedSources = ['githubWebhook.middleware.js', 'webhook.worker.js', 'webhook.queues.js'];
-      } else if (lower.includes('build') || lower.includes('staging') || lower.includes('deploy')) {
-        aiResponseText = `I analyzed the staging deployment build logs:
-• Docker container initialization completed in 18s.
-• Express API and Redis connection pings passed.
-• Staging build latency was slightly elevated due to npm dependency tree downloads on cold container start.`;
-        retrievedSources = ['docker-compose.yml', 'server.js', 'Deployment Logs (Staging)'];
-        toolCallData = {
-          toolName: 'getDeploymentLogs',
-          params: { deploymentId: 'dep_stag_1029', environment: 'Staging' },
-          status: 'approved',
-          description: 'Inspect live container logs from staging reverse proxy',
-        };
+
+        setMessages((prev) => [...prev, botMessage]);
       } else {
-        aiResponseText = `I analyzed your query in the context of ${currentProject?.name || 'this project'}. All application endpoints (/api/v1/*), Prisma models (Users, Organizations, Teams, Projects, Issues, Tasks, Labels, Milestones), and Redis workers are operating normally.`;
-        retrievedSources = ['README.md', 'Architecture Specification'];
+        throw new Error(res.data?.message || 'Unexpected response format from AI service.');
       }
+    } catch (err) {
+      console.error('AI chat error:', err);
+      const errMsg =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        err.message ||
+        'Failed to communicate with FlowForge AI backend.';
 
-      const botMessage = {
-        id: Date.now() + 1,
-        sender: 'assistant',
-        text: aiResponseText,
-        sources: retrievedSources,
-        toolCall: toolCallData,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-
-      setMessages((prev) => [...prev, botMessage]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          sender: 'assistant',
+          text: `⚠️ **AI Service Error**: ${errMsg}\n\nPlease check your backend GEMINI_API_KEY and network connectivity.`,
+          isError: true,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+    } finally {
       setIsProcessing(false);
-    }, 900);
-  };
-
-  // Tool Call Authorization Handlers
-  const handleAuthorizeTool = async (msgId, toolCall) => {
-    // If it's createIssue and we have project context, execute real API call!
-    if (toolCall.toolName === 'createIssue' && currentOrg?.id && currentProject?.id) {
-      try {
-        await issueApi.create(currentOrg.id, currentProject.id, toolCall.params);
-      } catch (err) {
-        console.warn('Tool real-call failed:', err);
-      }
     }
-
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === msgId && m.toolCall
-          ? {
-              ...m,
-              toolCall: { ...m.toolCall, status: 'executed' },
-              text: `${m.text}\n\n✅ Tool ${toolCall.toolName}() authorized and executed successfully. Action recorded in audit logs.`,
-            }
-          : m
-      )
-    );
   };
 
-  const handleDenyTool = (msgId, toolCall) => {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === msgId && m.toolCall
-          ? {
-              ...m,
-              toolCall: { ...m.toolCall, status: 'denied' },
-              text: `${m.text}\n\n❌ Tool execution denied by user. No modifications were performed.`,
-            }
-          : m
-      )
-    );
+  const handleIngestDocument = async (e) => {
+    e.preventDefault();
+    if (!docTitle.trim() || !docContent.trim() || !currentOrg?.id || !currentProject?.id) return;
+
+    setIsIngestingDoc(true);
+    setDocErrorMsg('');
+    setDocSuccessMsg('');
+
+    try {
+      const res = await documentApi.create(currentOrg.id, currentProject.id, {
+        title: docTitle.trim(),
+        category: docCategory,
+        content: docContent.trim(),
+      });
+
+      if (res.data?.success) {
+        setDocSuccessMsg('Document successfully added to Project Knowledge Base!');
+        setDocTitle('');
+        setDocContent('');
+        await fetchDocuments();
+        setTimeout(() => {
+          setIsDocModalOpen(false);
+          setDocSuccessMsg('');
+        }, 1200);
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now(),
+            sender: 'assistant',
+            text: `📄 Ingested new architecture document "${docTitle.trim()}" (${docCategory}). The document has been saved and is now accessible by the AI assistant.`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ]);
+      }
+    } catch (err) {
+      console.error('Failed to ingest document:', err);
+      setDocErrorMsg(err.response?.data?.message || 'Failed to ingest and embed document.');
+    } finally {
+      setIsIngestingDoc(false);
+    }
+  };
+
+  const handleDeleteDocument = async (docId, title) => {
+    if (!window.confirm(`Delete document "${title}" from project knowledge base?`)) return;
+    try {
+      await documentApi.delete(currentOrg.id, currentProject.id, docId);
+      setDocuments((prev) => prev.filter((d) => d.id !== docId));
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to delete document.');
+    }
   };
 
   const clearChat = () => {
+    setHistory([]);
     setMessages([
       {
         id: Date.now(),
         sender: 'assistant',
         text: `Conversation cleared. What project context would you like to explore next?`,
-        sources: null,
-        toolCall: null,
         timestamp: 'Just now',
       },
     ]);
+  };
+
+  const filteredDocs = documents.filter((d) => {
+    if (!docSearchQuery.trim()) return true;
+    const q = docSearchQuery.toLowerCase();
+    return (
+      d.title.toLowerCase().includes(q) ||
+      d.category.toLowerCase().includes(q) ||
+      d.content?.toLowerCase().includes(q)
+    );
+  });
+
+  const categoryBadgeColors = {
+    ARCHITECTURE: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+    API: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+    ONBOARDING: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+    GENERAL: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
   };
 
   return (
@@ -202,26 +263,44 @@ export const AiAssistant = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight flex items-center space-x-2">
-            <span>AI Developer Assistant & RAG Copilot</span>
+            <span>AI Project Assistant</span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-mono">
-              Roadmap AI
+              Smart Assistant
             </span>
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Retrieval-Augmented Generation across code docs, pull requests, and safety-enforced backend tool execution.
+            Intelligent assistant connected to your project workspace, tasks, deliverables, and documentation.
           </p>
         </div>
 
         <div className="flex items-center space-x-2">
+          {/* Knowledge Base Manager Button */}
+          <button
+            onClick={() => setIsKbDrawerOpen(true)}
+            disabled={!currentProject}
+            className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-medium flex items-center space-x-1.5 transition-colors disabled:opacity-50"
+          >
+            <Layers className="w-3.5 h-3.5 text-brand-400" />
+            <span>Knowledge Base ({documents.length})</span>
+          </button>
+
+          {/* Document Ingestion Button */}
+          <button
+            onClick={() => setIsDocModalOpen(true)}
+            disabled={!currentProject}
+            className="px-3 py-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40 text-xs font-medium flex items-center space-x-1.5 transition-colors disabled:opacity-50"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>+ Add Document</span>
+          </button>
+
           {/* Model Selector */}
           <select
             value={activeModel}
             onChange={(e) => setActiveModel(e.target.value)}
             className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-purple-300 text-xs font-mono focus:outline-none"
           >
-            <option value="FlowForge-RAG-v2 (Local/Ollama & Cloud)">FlowForge-RAG-v2 (Local Ollama & Cloud)</option>
-            <option value="Claude 3.5 Sonnet (Developer Tools)">Claude 3.5 Sonnet (Developer Tools)</option>
-            <option value="GPT-4o (Project RAG Embeddings)">GPT-4o (Project RAG Embeddings)</option>
+            <option value="Google Gemini (Live Project Context)">Google Gemini (Live Project Context)</option>
           </select>
 
           <button
@@ -239,26 +318,28 @@ export const AiAssistant = () => {
         <div className="flex items-center space-x-2 text-slate-400 font-mono text-[11px]">
           <Database className="w-3.5 h-3.5 text-purple-400" />
           <span>Active Context:</span>
-          <span className="text-slate-200 font-semibold">{currentProject?.name || 'All Workspace Projects'}</span>
+          <span className="text-slate-200 font-semibold">{currentProject?.name || 'No Project Selected'}</span>
+          {currentOrg && (
+            <span className="text-slate-500">({currentOrg.name})</span>
+          )}
+          <span className="text-slate-500">•</span>
+          <span className="text-purple-300">{documents.length} Project Documents</span>
         </div>
 
         <div className="flex items-center space-x-2 text-[11px] font-mono">
-          <span className="text-slate-500">Filter Sources:</span>
-          {['ALL', 'DOCS', 'ISSUES', 'PULL_REQUESTS', 'LOGS'].map((src) => (
-            <button
-              key={src}
-              onClick={() => setSelectedContextSource(src)}
-              className={`px-2 py-0.5 rounded transition-colors ${
-                selectedContextSource === src
-                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {src}
-            </button>
-          ))}
+          <span className="text-emerald-400 flex items-center space-x-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Assistant Online</span>
+          </span>
         </div>
       </div>
+
+      {errorBanner && (
+        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center space-x-2 shrink-0">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{errorBanner}</span>
+        </div>
+      )}
 
       {/* Chat Messages Log */}
       <div className="flex-1 glass-panel rounded-2xl border border-slate-800 flex flex-col overflow-hidden bg-[#0a0f1e]">
@@ -277,81 +358,15 @@ export const AiAssistant = () => {
               )}
 
               <div
-                className={`max-w-2xl rounded-2xl p-4 text-xs leading-relaxed space-y-3 ${
+                className={`max-w-2xl rounded-2xl p-4 text-xs leading-relaxed space-y-2 ${
                   m.sender === 'user'
                     ? 'bg-brand-600 text-white shadow-lg'
+                    : m.isError
+                    ? 'bg-rose-950/40 border border-rose-500/30 text-rose-200'
                     : 'bg-slate-900/90 border border-slate-800 text-slate-200 shadow-sm'
                 }`}
               >
                 <div className="whitespace-pre-wrap">{m.text}</div>
-
-                {/* RAG Source Citations */}
-                {m.sources && m.sources.length > 0 && (
-                  <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-1.5 text-[10px] font-mono text-slate-400">
-                    <span className="text-purple-400 flex items-center space-x-1">
-                      <FileText className="w-3 h-3" />
-                      <span>RAG Sources:</span>
-                    </span>
-                    {m.sources.map((src, i) => (
-                      <span
-                        key={i}
-                        className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300"
-                      >
-                        {src}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {/* AI Tool Authorization Card */}
-                {m.toolCall && (
-                  <div className="p-3.5 rounded-xl bg-slate-950 border border-purple-500/30 space-y-2.5">
-                    <div className="flex items-center justify-between text-[11px] font-mono">
-                      <span className="flex items-center space-x-1.5 text-purple-300 font-semibold">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>Backend Tool Execution Request:</span>
-                      </span>
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-mono border ${
-                          m.toolCall.status === 'executed'
-                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                            : m.toolCall.status === 'denied'
-                            ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-                            : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                        }`}
-                      >
-                        {m.toolCall.status.toUpperCase()}
-                      </span>
-                    </div>
-
-                    <p className="text-[11px] text-slate-400">{m.toolCall.description}</p>
-
-                    <div className="p-2.5 rounded-lg bg-slate-900 text-[10px] font-mono border border-slate-800 text-brand-300 overflow-x-auto">
-                      <code>
-                        {m.toolCall.toolName}({JSON.stringify(m.toolCall.params, null, 2)})
-                      </code>
-                    </div>
-
-                    {m.toolCall.status === 'pending' && (
-                      <div className="flex items-center space-x-2 pt-1">
-                        <button
-                          onClick={() => handleAuthorizeTool(m.id, m.toolCall)}
-                          className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-semibold flex items-center space-x-1.5 shadow-sm transition-colors"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          <span>Authorize & Execute</span>
-                        </button>
-                        <button
-                          onClick={() => handleDenyTool(m.id, m.toolCall)}
-                          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] flex items-center space-x-1.5 transition-colors"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                          <span>Reject</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 <div className="text-[9px] text-slate-500 text-right font-mono">
                   {m.timestamp}
@@ -363,7 +378,7 @@ export const AiAssistant = () => {
           {isProcessing && (
             <div className="flex items-center space-x-3 text-xs text-purple-300 font-mono">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Analyzing RAG vector embeddings & verifying tool boundaries...</span>
+              <span>FlowForge AI is analyzing live project context and querying Gemini...</span>
             </div>
           )}
 
@@ -379,7 +394,8 @@ export const AiAssistant = () => {
             <button
               key={idx}
               onClick={() => handleSend(p)}
-              className="text-[11px] px-2.5 py-1 rounded-full bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 whitespace-nowrap transition-colors"
+              disabled={isProcessing}
+              className="text-[11px] px-2.5 py-1 rounded-full bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 whitespace-nowrap transition-colors disabled:opacity-50"
             >
               {p}
             </button>
@@ -399,7 +415,7 @@ export const AiAssistant = () => {
             value={input}
             disabled={isProcessing}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={`Ask AI about ${currentProject?.name || 'FlowForge'} project documentation, issues, pull requests, or logs...`}
+            placeholder={`Ask AI about ${currentProject?.name || 'FlowForge'} project issues, tasks, or request issue creation...`}
             className="flex-1 py-2.5 px-4 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-xs placeholder-slate-500 focus:outline-none focus:border-purple-500"
           />
           <button
@@ -412,6 +428,215 @@ export const AiAssistant = () => {
           </button>
         </form>
       </div>
+
+      {/* Knowledge Base Documents Drawer */}
+      {isKbDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-xl h-full glass-panel border-l border-slate-800 shadow-2xl flex flex-col bg-[#0c1222] animate-in slide-in-from-right duration-200">
+            {/* Drawer Header */}
+            <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                  <BookOpen className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Project Knowledge Base</h3>
+                  <p className="text-[11px] text-slate-400">
+                    Documents embedded as vector embeddings for semantic retrieval
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsKbDrawerOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Search & Actions */}
+            <div className="p-4 border-b border-slate-800/80 flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={docSearchQuery}
+                  onChange={(e) => setDocSearchQuery(e.target.value)}
+                  placeholder="Search indexed documents..."
+                  className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              <button
+                onClick={() => {
+                  setIsKbDrawerOpen(false);
+                  setIsDocModalOpen(true);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold flex items-center space-x-1 shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>New Doc</span>
+              </button>
+            </div>
+
+            {/* Document List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {loadingDocs ? (
+                <div className="py-20 text-center text-slate-500 flex flex-col items-center space-y-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-purple-400" />
+                  <span className="text-xs font-mono">Loading project documents...</span>
+                </div>
+              ) : filteredDocs.length === 0 ? (
+                <div className="py-16 text-center text-slate-500 space-y-2">
+                  <FileText className="w-8 h-8 mx-auto opacity-40 text-purple-400" />
+                  <p className="text-xs font-medium text-slate-300">No documents found</p>
+                  <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+                    Add specifications, requirements, project briefs, or guides to help your AI assistant understand your project.
+                  </p>
+                </div>
+              ) : (
+                filteredDocs.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800/80 hover:border-slate-700 space-y-2 group transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center space-x-2">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-mono border ${categoryBadgeColors[doc.category] || categoryBadgeColors.GENERAL}`}>
+                          {doc.category}
+                        </span>
+                        <h4 className="text-xs font-bold text-white group-hover:text-purple-300 transition-colors">
+                          {doc.title}
+                        </h4>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteDocument(doc.id, doc.title)}
+                        title="Delete Document"
+                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-rose-400 transition-opacity"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <p className="text-[11px] text-slate-400 line-clamp-3 leading-relaxed whitespace-pre-wrap font-sans">
+                      {doc.content}
+                    </p>
+
+                    <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] font-mono text-slate-500">
+                      <span>{doc.content?.length || 0} characters</span>
+                      <span>Indexed {new Date(doc.createdAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ingest Project Document Modal */}
+      {isDocModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-lg glass-panel rounded-2xl border border-slate-800 shadow-2xl p-6 animate-in zoom-in-95 duration-150 bg-[#0c1222]">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center space-x-2">
+                <BookOpen className="w-5 h-5 text-purple-400" />
+                <div>
+                  <h3 className="text-sm font-bold text-white">Add Project Document</h3>
+                  <p className="text-[11px] text-slate-400">Add documentation to your project knowledge base</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsDocModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {docSuccessMsg && (
+              <div className="mt-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{docSuccessMsg}</span>
+              </div>
+            )}
+
+            {docErrorMsg && (
+              <div className="mt-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{docErrorMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleIngestDocument} className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Document Title
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={docTitle}
+                  onChange={(e) => setDocTitle(e.target.value)}
+                  placeholder="e.g. Authentication & Token Architecture"
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-xs focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Category
+                </label>
+                <select
+                  value={docCategory}
+                  onChange={(e) => setDocCategory(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-xs focus:outline-none focus:border-purple-500"
+                >
+                  <option value="ARCHITECTURE">ARCHITECTURE</option>
+                  <option value="API">API</option>
+                  <option value="ONBOARDING">ONBOARDING</option>
+                  <option value="GENERAL">GENERAL</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Document Content (Markdown / Text)
+                </label>
+                <textarea
+                  required
+                  rows={6}
+                  value={docContent}
+                  onChange={(e) => setDocContent(e.target.value)}
+                  placeholder="Paste documentation content, schema details, or system flow for AI vector indexing..."
+                  className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-xs font-mono focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setIsDocModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs text-slate-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isIngestingDoc || !docTitle.trim() || !docContent.trim()}
+                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md disabled:opacity-50 transition-all"
+                >
+                  {isIngestingDoc ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Plus className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isIngestingDoc ? 'Computing Vector Embeddings...' : 'Ingest & Embed'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

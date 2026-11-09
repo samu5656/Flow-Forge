@@ -3,10 +3,11 @@ import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Navbar } from './Navbar';
 import { ToastBanner } from './ToastBanner';
+import { FloatingAiChatbot } from './FloatingAiChatbot';
 
 export const Layout = () => {
   return (
-    <div className="flex h-screen bg-[#090d16] text-slate-100 overflow-hidden">
+    <div className="flex h-screen bg-[#090d16] text-slate-100 overflow-hidden relative">
       {/* Fixed Left Sidebar */}
       <Sidebar />
 
@@ -24,6 +25,9 @@ export const Layout = () => {
 
       {/* Real-time socket toast notification */}
       <ToastBanner />
+
+      {/* Client Floating AI Chatbot in bottom right corner */}
+      <FloatingAiChatbot />
     </div>
   );
 };
