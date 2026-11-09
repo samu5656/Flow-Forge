@@ -35,6 +35,6 @@ export const apiLimiter = createLimiter({
 // 2. Strict Auth Limiter: Max 5 attempts per 15 minutes (protects login/register)
 export const authLimiter = createLimiter({
     windowMs: 15 * 60 * 1000,
-    max: 5,
+    max: 15,
     message: 'Too many authentication attempts. Your IP has been temporarily blocked for 15 minutes.'
 });
