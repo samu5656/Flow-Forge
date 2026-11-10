@@ -6,15 +6,10 @@ export const createMilestone = async (data) => {
     });
 };
 
-export const findMilestonesByProject = async (
-    projectId
-) => {
+export const findMilestonesByProject = async (projectId) => {
     return prisma.milestone.findMany({
         where: {
             projectId,
-            project:{
-                organizationId
-            }
         },
         orderBy: {
             dueDate: "asc"
@@ -22,49 +17,28 @@ export const findMilestonesByProject = async (
     });
 };
 
-export const findMilestoneById = async (
-    milestoneId,
-    projectId
-) => {
+export const findMilestoneById = async (milestoneId, projectId) => {
     return prisma.milestone.findFirst({
         where: {
             id: milestoneId,
             projectId,
-            project:{
-                organizationId
-            }
         }
     });
 };
 
-export const updateMilestone = async (
-    milestoneId,
-    projectId,
-    data
-) => {
-    return prisma.milestone.updateMany({
+export const updateMilestone = async (milestoneId, projectId, data) => {
+    return prisma.milestone.update({
         where: {
             id: milestoneId,
-            projectId,
-            project:{
-                organizationId
-            }
         },
         data
     });
 };
 
-export const deleteMilestone = async (
-    milestoneId,
-    projectId
-) => {
-    return prisma.milestone.deleteMany({
+export const deleteMilestone = async (milestoneId, projectId) => {
+    return prisma.milestone.delete({
         where: {
             id: milestoneId,
-            projectId,
-            project:{
-                organizationId
-            }
         }
     });
 };

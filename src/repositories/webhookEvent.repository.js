@@ -12,6 +12,13 @@ export const createWebhookEvent = async(data) => {
     return prisma.webhookEvent.create({data});
 }
 
+export const getRecentWebhookEvents = async (limit = 50) => {
+    return prisma.webhookEvent.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: limit
+    });
+};
+
 export const markWebhookEventProcessed = async(id)=>{
     return prisma.webhookEvent.update({
         where:{id},

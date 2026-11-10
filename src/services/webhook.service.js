@@ -1,11 +1,13 @@
 import {
     createWebhookEvent,
     findWebhookEventByDeliveryId,
+    getRecentWebhookEvents,
     markWebhookEventFailed,
     markWebhookEventPending,
     markWebhookEventProcessed,
     markWebhookEventSkipped
 } from '../repositories/webhookEvent.repository.js';
+import { getIO } from '../socket.js';
 
 /**
  * Process an incoming GitHub webhook event.
@@ -38,12 +40,33 @@ export const processWebhookEvent = async ({ deliveryId, eventType, action, paylo
     try {
         await handleEvent(eventType, action, payload);
         await markWebhookEventProcessed(webhookEvent.id);
+
+        try {
+            const io = getIO();
+            io.emit('webhook:delivered', {
+                id: webhookEvent.id,
+                deliveryId: webhookEvent.deliveryId,
+                eventType: webhookEvent.eventType,
+                action: webhookEvent.action,
+                repositoryFullName: webhookEvent.repositoryFullName,
+                status: 'PROCESSED',
+                payload: payload,
+                createdAt: webhookEvent.createdAt,
+                processedAt: new Date()
+            });
+        } catch (socketErr) {
+            // socket might not be initialized in certain worker contexts, safely ignore
+        }
     } catch (error) {
         console.error("Failed to process webhook event", error);
         await markWebhookEventFailed(webhookEvent.id, error);
     }
 
     return { alreadyProcessed: false };
+};
+
+export const listRecentWebhookEvents = async (limit = 50) => {
+    return getRecentWebhookEvents(limit);
 };
 
 const handleEvent = async (eventType, action, payload) => {
@@ -64,4 +87,4 @@ const handleEvent = async (eventType, action, payload) => {
         default:
             console.log(`Received event: ${eventType} (${action || 'no action'})`);
     }
-}
+};

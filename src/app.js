@@ -27,55 +27,62 @@ app.use(helmet({
 }));
 app.use(cors());
 
-app.get("/health/live",(req,res)=>{
-    res.status(200).json({
-        status:"alive",
-        timestamp:new Date().toISOString()
-    });
-})
-app.get("/health/ready", async (req, res) => {
+const healthHandler = async (req, res) => {
     const checks = {
-        database:"disconnected",
-        redis:"disconnected"
-    }
+        database: "disconnected",
+        redis: "disconnected"
+    };
     let isHealthy = true;
 
-    try{
+    try {
         await prisma.$queryRaw`SELECT 1`;
-        checks.database="connected";
-    }catch(err){
-        isHealthy=false;
-        checks.database=`error:${err.message}`;
+        checks.database = "connected";
+    } catch (err) {
+        isHealthy = false;
+        checks.database = `error:${err.message}`;
     }
     try {
         await redis.ping();
-        checks.redis="connected";
+        checks.redis = "connected";
     } catch (error) {
-        isHealthy=false;
+        isHealthy = false;
         checks.redis = `error:${error.message}`;
     }
 
-    const statusCode = isHealthy?200:503;
+    const statusCode = isHealthy ? 200 : 503;
     res.status(statusCode).json({
-        status:isHealthy?"Ready":"unhealthy",
+        status: isHealthy ? "ok" : "degraded",
+        redis: checks.redis,
+        database: checks.database,
         checks,
         timestamp: new Date().toISOString()
-    })
+    });
+};
+
+app.get("/health/live", (req, res) => {
+    res.status(200).json({
+        status: "alive",
+        timestamp: new Date().toISOString()
+    });
 });
+app.get("/health/ready", healthHandler);
+app.get("/health", healthHandler);
+app.get("/api/v1/health", healthHandler);
+
 app.use(apiLimiter);
 
 //"If anyone asks for a URL starting with /uploads, serve the file from the uploads folder"
-app.use("/uploads",express.static('uploads'))
+app.use("/uploads", express.static('uploads'));
 app.use(express.json({
-    verify:(req,res,buf)=>{
-        if(req.originalUrl.startsWith('/api/v1/github/webhook')){
+    verify: (req, res, buf) => {
+        if (req.originalUrl.startsWith('/api/v1/github/webhook')) {
             req.rawBody = buf.toString();
         }
     }
 }));
-app.use(cookieParser())
+app.use(cookieParser());
 
-app.use("/api/v1/organizations",organizationRoutes);;
+app.use("/api/v1/organizations", organizationRoutes);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1", issueRoutes);
 app.use("/api/v1", taskRoutes);
@@ -83,7 +90,6 @@ app.use("/api/v1", labelRoutes);
 app.use("/api/v1", milestoneRoutes);
 app.use("/api/v1", githubRoutes);
 app.use("/api/v1/", notificationRoutes);
-
 
 app.post('/api/v1/test-email', async (req, res) => {
     const { email } = req.body;

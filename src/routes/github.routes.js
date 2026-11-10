@@ -23,7 +23,8 @@ import {
     getProjectRepositories,
     getProjectRepository,
     disconnectRepository,
-    disconnectGithub
+    disconnectGithub,
+    getWebhookDeliveries
 } from "../controllers/github.controller.js";
 
 import {
@@ -130,5 +131,6 @@ router.delete(
 );
 
 router.post('/github/webhook', verifyGithubSignature, handleGithubWebhook);
+router.get('/github/webhooks', authenticate, getWebhookDeliveries);
 
 export default router;

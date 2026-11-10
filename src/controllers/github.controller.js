@@ -11,7 +11,8 @@ import {
     disconnectProjectGithubRepository,
     disconnectGithubAccount
 } from "../services/github.service.js";
-import { processWebhookEvent } from "../services/webhook.service.js";
+import { processWebhookEvent, listRecentWebhookEvents } from "../services/webhook.service.js";
+import { getIO } from "../socket.js";
 import { addWebhookJob } from "../queues/webhook.queues.js";
 
 /*
@@ -346,3 +347,16 @@ export const handleGithubWebhook = async (req, res, next) => {
         }
     }
 }
+
+
+export const getWebhookDeliveries = async (req, res, next) => {
+    try {
+        const events = await listRecentWebhookEvents(30);
+        res.status(200).json({
+            success: true,
+            data: events
+        });
+    } catch (error) {
+        next(error);
+    }
+};

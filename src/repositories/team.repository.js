@@ -1,4 +1,4 @@
-import prisma from "../lib/prisma.js"
+import prisma from "../lib/prisma.js";
 
 export const createTeam = async (data) => {
     return prisma.team.create({
@@ -11,20 +11,48 @@ export const findTeamsByOrganization = async (organizationId) => {
         where: {
             organizationId
         },
+        include: {
+            TeamMember: {
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                            avatarUrl: true
+                        }
+                    }
+                }
+            }
+        },
         orderBy: {
             createdAt: "desc"
         }
     });
 };
-//enforcing tenant scope at the query level- querying team needs both teamid and orgid because if a malicious user who belongs to orgA gets the ID of a team of organization B then without checking which org he belongs the team data will be displayed so it is important to check both team and org id during querying.
+
 export const findTeamById = async (teamId, organizationId) => {
     return prisma.team.findFirst({
         where: {
             id: teamId,
             organizationId
+        },
+        include: {
+            TeamMember: {
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                            avatarUrl: true
+                        }
+                    }
+                }
+            }
         }
-    })
-}
+    });
+};
 
 export const updateTeam = async (
     teamId,
@@ -48,6 +76,55 @@ export const deleteTeam = async (
         where: {
             id: teamId,
             organizationId
+        }
+    });
+};
+
+export const addMemberToTeam = async (teamId, userId) => {
+    return prisma.teamMember.create({
+        data: {
+            teamId,
+            userId
+        },
+        include: {
+            user: {
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    avatarUrl: true
+                }
+            }
+        }
+    });
+};
+
+export const removeMemberFromTeam = async (teamId, userId) => {
+    return prisma.teamMember.deleteMany({
+        where: {
+            teamId,
+            userId
+        }
+    });
+};
+
+export const findOrganizationMembers = async (organizationId) => {
+    return prisma.organizationMember.findMany({
+        where: {
+            organizationId
+        },
+        include: {
+            user: {
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    avatarUrl: true
+                }
+            }
+        },
+        orderBy: {
+            createdAt: "asc"
         }
     });
 };

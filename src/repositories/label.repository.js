@@ -6,15 +6,10 @@ export const createLabel = async (data) => {
     });
 };
 
-export const findLabelsByProject = async (
-    projectId
-) => {
+export const findLabelsByProject = async (projectId) => {
     return prisma.label.findMany({
         where: {
             projectId,
-            project:{
-                organizationId
-            }
         },
         orderBy: {
             createdAt: "desc"
@@ -22,49 +17,28 @@ export const findLabelsByProject = async (
     });
 };
 
-export const findLabelById = async (
-    labelId,
-    projectId
-) => {
+export const findLabelById = async (labelId, projectId) => {
     return prisma.label.findFirst({
         where: {
             id: labelId,
             projectId,
-            project:{
-                organizationId
-            }
         }
     });
 };
 
-export const updateLabel = async (
-    labelId,
-    projectId,
-    data
-) => {
-    return prisma.label.updateMany({
+export const updateLabel = async (labelId, projectId, data) => {
+    return prisma.label.update({
         where: {
             id: labelId,
-            projectId,
-            project:{
-                organizationId
-            }
         },
         data
     });
 };
 
-export const deleteLabel = async (
-    labelId,
-    projectId
-) => {
-    return prisma.label.deleteMany({
+export const deleteLabel = async (labelId, projectId) => {
+    return prisma.label.delete({
         where: {
             id: labelId,
-            projectId,
-            project:{
-                organizationId
-            }
         }
     });
 };
